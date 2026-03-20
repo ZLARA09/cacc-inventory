@@ -1,0 +1,22 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+
+Hit **Ctrl+S** to save and close Notepad.
+
+Then run these to push the update to GitHub — which will automatically update Vercel:
+
+**Command 4:**
+```
+git add .
+```
+**Command 5:**
+```
+git commit -m "add vercel config"
+```
+**Command 6:**
+```
+git push
