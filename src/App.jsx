@@ -1,6 +1,3 @@
-Perfect. Now paste this entire block into the empty Notepad file:
-
-```jsx
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
