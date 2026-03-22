@@ -142,7 +142,7 @@ function BrigadePage({ brigades, battalions }) {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <select onChange={e => setSelectedBrigade(e.target.value)} value={selectedBrigade || ""} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff" }}>
+        <select onChange={e => setSelectedBrigade(e.target.value)} value={selectedBrigade || ""} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827>
           <option value="">Select a brigade...</option>
           {brigades.map(b => <option key={b.id} value={b.id}>{b.name} — {b.region}</option>)}
         </select>
@@ -195,7 +195,7 @@ function BattalionPage({ brigades, battalions }) {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <select onChange={e => setSelectedBat(e.target.value)} value={selectedBat || ""} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", width: 320 }}>
+        <select onChange={e => setSelectedBat(e.target.value)} value={selectedBat || ""} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827>
           <option value="">Select a battalion...</option>
           {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
         </select>
