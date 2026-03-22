@@ -82,10 +82,6 @@ export default function App() {
   );
 }
 
-function getInv(inventory, battalionId, catalogItemId) {
-  return inventory.find(i => i.battalion_id === battalionId && i.catalog_item_id === catalogItemId) || { qty_serviceable: 0, qty_unserviceable: 0, qty_issued: 0 };
-}
-
 function sumInv(inventory, battalionIds, catalogItemId) {
   const rows = inventory.filter(i => battalionIds.includes(i.battalion_id) && i.catalog_item_id === catalogItemId);
   return {
@@ -95,7 +91,7 @@ function sumInv(inventory, battalionIds, catalogItemId) {
   };
 }
 
-function InventoryTable({ items, inventory, battalionIds, readOnly }) {
+function InventoryTable({ items, inventory, battalionIds }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
       <thead>
@@ -129,7 +125,7 @@ function InventoryTable({ items, inventory, battalionIds, readOnly }) {
   );
 }
 
-function SectionLayout({ categories, inventory, battalionIds, open, toggleCat, readOnly }) {
+function SectionLayout({ categories, inventory, battalionIds, open, toggleCat }) {
   return (
     <div>
       {SECTIONS.map(section => (
@@ -149,7 +145,7 @@ function SectionLayout({ categories, inventory, battalionIds, open, toggleCat, r
                     <span style={{ fontSize: 12, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
                   </div>
                 </div>
-                {open[cat] && <InventoryTable items={items} inventory={inventory} battalionIds={battalionIds} readOnly={readOnly} />}
+                {open[cat] && <InventoryTable items={items} inventory={inventory} battalionIds={battalionIds} />}
               </div>
             );
           })}
@@ -178,7 +174,7 @@ function StateDashboard({ categories, brigades, battalions, inventory }) {
           </div>
         ))}
       </div>
-      <SectionLayout categories={categories} inventory={inventory} battalionIds={allBatIds} open={open} toggleCat={toggleCat} readOnly={true} />
+      <SectionLayout categories={categories} inventory={inventory} battalionIds={allBatIds} open={open} toggleCat={toggleCat} />
     </div>
   );
 }
@@ -231,7 +227,7 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
             </table>
           </div>
           <div style={{ marginBottom: 12, fontWeight: 500, fontSize: 14, color: "#111827" }}>Aggregate inventory — {brig.name}</div>
-          <SectionLayout categories={categories} inventory={inventory} battalionIds={batIds} open={open} toggleCat={toggleCat} readOnly={true} />
+          <SectionLayout categories={categories} inventory={inventory} battalionIds={batIds} open={open} toggleCat={toggleCat} />
         </>
       )}
     </div>
@@ -346,13 +342,13 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
                                 <td style={{ padding: "8px 16px", color: "#111827" }}>{item.item_name}</td>
                                 <td style={{ padding: "8px 16px", color: "#6b7280" }}>{item.size_label}</td>
                                 <td style={{ padding: "8px 16px" }}>
-                                  <input type="number" min="0" value={svc} onChange={e => setEdit(item.id, "qty_serviceable", e.target.value)} style={{ width: 60, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center" }} />
+                                  <input type="number" min="0" value={svc} onChange={e => setEdit(item.id, "qty_serviceable", e.target.value)} style={{ width: 60, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#ffffff" }} />
                                 </td>
                                 <td style={{ padding: "8px 16px" }}>
-                                  <input type="number" min="0" value={unsvc} onChange={e => setEdit(item.id, "qty_unserviceable", e.target.value)} style={{ width: 60, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center" }} />
+                                  <input type="number" min="0" value={unsvc} onChange={e => setEdit(item.id, "qty_unserviceable", e.target.value)} style={{ width: 60, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#ffffff" }} />
                                 </td>
                                 <td style={{ padding: "8px 16px" }}>
-                                  <input type="number" min="0" value={issued} onChange={e => setEdit(item.id, "qty_issued", e.target.value)} style={{ width: 60, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center" }} />
+                                  <input type="number" min="0" value={issued} onChange={e => setEdit(item.id, "qty_issued", e.target.value)} style={{ width: 60, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#ffffff" }} />
                                 </td>
                                 <td style={{ padding: "8px 16px" }}>
                                   <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: inStock > 0 ? "#dcfce7" : "#f3f4f6", color: inStock > 0 ? "#166534" : "#6b7280" }}>{inStock}</span>
@@ -403,7 +399,7 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
             {[["unit_number", "Unit number (e.g. 1-105)"], ["school_name", "School name"], ["school_address", "School address"], ["cadet_count", "Number of cadets"], ["commandant_name", "Commandant name and rank"], ["commandant_email", "Commandant email"], ["phone", "Phone number"]].map(([field, label]) => (
               <div key={field}>
                 <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{label}</div>
-                <input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827" }} />
+                <input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#ffffff" }} />
               </div>
             ))}
             <div>
