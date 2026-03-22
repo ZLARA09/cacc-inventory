@@ -29,22 +29,53 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchUserRole(session.user.email);
+      if (session) handleSession(session);
       else setAuthLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) fetchUserRole(session.user.email);
+      if (session) handleSession(session);
       else { setUserRole(null); setAuthLoading(false); }
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  async function fetchUserRole(email) {
-    const { data } = await supabase.from("user_roles").select("*").eq("email", email).single();
-    setUserRole(data || null);
-    setAuthLoading(false);
-    if (data) fetchAll();
+  async function handleSession(session) {
+    const email = session.user.email;
+    const name = session.user.user_metadata?.full_name || session.user.user_metadata?.name || email.split("@")[0];
+    const { data: existing } = await supabase.from("user_roles").select("*").eq("email", email).single();
+    if (existing) {
+      if (!existing.user_id) {
+        await supabase.from("user_roles").update({ user_id: session.user.id }).eq("email", email);
+      }
+      setUserRole(existing);
+      setAuthLoading(false);
+      if (existing.role !== "pending") fetchAll();
+    } else if (email.endsWith("@cacadets.org")) {
+      const newUser = { user_id: session.user.id, email, full_name: name, role: "pending" };
+      await supabase.from("user_roles").insert([newUser]);
+      await sendNewUserAlert(email, name);
+      setUserRole({ ...newUser, role: "pending" });
+      setAuthLoading(false);
+    } else {
+      setUserRole(null);
+      setAuthLoading(false);
+    }
+  }
+
+  async function sendNewUserAlert(email, name) {
+    try {
+      await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 100,
+          messages: [{ role: "user", content: `Send email alert: New CACC Inventory user registered. Name: ${name}, Email: ${email}` }]
+        })
+      });
+    } catch (e) {}
+    console.log(`New user registered: ${name} (${email})`);
   }
 
   async function fetchAll() {
@@ -74,10 +105,7 @@ export default function App() {
   async function signInWithMicrosoft() {
     await supabase.auth.signInWithOAuth({
       provider: "azure",
-      options: {
-        scopes: "email",
-        redirectTo: window.location.origin,
-      },
+      options: { scopes: "email", redirectTo: window.location.origin },
     });
   }
 
@@ -111,9 +139,7 @@ export default function App() {
             </svg>
             Sign in with Microsoft
           </button>
-          <div style={{ marginTop: 20, fontSize: 12, color: "#9ca3af" }}>
-            Use your cacadets.org or authorized Microsoft account
-          </div>
+          <div style={{ marginTop: 20, fontSize: 12, color: "#9ca3af" }}>Use your cacadets.org Microsoft account</div>
         </div>
       </div>
     );
@@ -124,14 +150,28 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f5f5f4", fontFamily: "sans-serif" }}>
         <div style={{ background: "#fff", borderRadius: 16, padding: 40, maxWidth: 400, width: "100%", margin: "0 16px", border: "0.5px solid #e5e7eb", textAlign: "center" }}>
           <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
-          <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>Your account has not been authorized yet.</div>
-          <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#FEF9C3", borderRadius: 8 }}>
+          <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>Your email is not authorized for this system.</div>
+          <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#FEF2F2", borderRadius: 8 }}>
             Signed in as: <strong>{session.user.email}</strong><br/>
-            Please contact State HQ to request access.
+            Only @cacadets.org accounts are permitted.
           </div>
-          <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>
-            Sign out
-          </button>
+          <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Sign out</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (userRole.role === "pending") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f5f5f4", fontFamily: "sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 40, maxWidth: 400, width: "100%", margin: "0 16px", border: "0.5px solid #e5e7eb", textAlign: "center" }}>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
+          <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>Welcome! Your account is pending approval.</div>
+          <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#EAF3DE", borderRadius: 8 }}>
+            Signed in as: <strong>{session.user.email}</strong><br/><br/>
+            State HQ has been notified and will assign your access level shortly.
+          </div>
+          <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Sign out</button>
         </div>
       </div>
     );
@@ -143,6 +183,7 @@ export default function App() {
     { id: "battalion", label: "Battalion dashboard" },
     { id: "units", label: "Unit management" },
     { id: "catalog", label: "Catalog admin" },
+    ...(userRole.role === "state_admin" ? [{ id: "users", label: "User management" }] : []),
   ];
 
   return (
@@ -162,7 +203,7 @@ export default function App() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div className="desktop-tabs" style={{ fontSize: 12, color: "#6b7280" }}>
-            {userRole.full_name} · {userRole.role.replace("_", " ")}
+            {userRole.full_name} · {userRole.role.replace(/_/g, " ")}
           </div>
           <button onClick={signOut} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#111827" }}>
             Sign out
@@ -185,16 +226,14 @@ export default function App() {
       {menuOpen && (
         <div style={{ background: "#fff", borderBottom: "0.5px solid #e5e7eb", padding: "8px 0" }}>
           <div style={{ padding: "10px 20px", fontSize: 12, color: "#6b7280", borderBottom: "0.5px solid #f3f4f6" }}>
-            {userRole.full_name} · {userRole.role.replace("_", " ")}
+            {userRole.full_name} · {userRole.role.replace(/_/g, " ")}
           </div>
           {tabs.map(t => (
             <div key={t.id} onClick={() => { setPage(t.id); setMenuOpen(false); }} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", background: page === t.id ? "#E6F1FB" : "#fff", color: page === t.id ? "#185FA5" : "#111827", fontWeight: page === t.id ? 500 : 400, borderLeft: page === t.id ? "3px solid #185FA5" : "3px solid transparent" }}>
               {t.label}
             </div>
           ))}
-          <div onClick={signOut} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", color: "#991b1b" }}>
-            Sign out
-          </div>
+          <div onClick={signOut} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", color: "#991b1b" }}>Sign out</div>
         </div>
       )}
 
@@ -208,8 +247,135 @@ export default function App() {
             {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchAll={fetchAll} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchAll={fetchAll} />}
             {page === "catalog" && <CatalogPage categories={categories} fetchAll={fetchAll} />}
+            {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} />}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function UserManagement({ brigades, battalions }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState({});
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  async function fetchUsers() {
+    setLoading(true);
+    const { data } = await supabase.from("user_roles").select("*").order("created_at", { ascending: false });
+    setUsers(data || []);
+    setLoading(false);
+  }
+
+  async function updateUser(userId, updates) {
+    setSaving(s => ({ ...s, [userId]: true }));
+    await supabase.from("user_roles").update(updates).eq("id", userId);
+    await fetchUsers();
+    setSaving(s => ({ ...s, [userId]: false }));
+  }
+
+  const roleOptions = ["pending", "battalion_staff", "brigade_staff", "admin", "state_admin"];
+  const pendingUsers = users.filter(u => u.role === "pending");
+  const activeUsers = users.filter(u => u.role !== "pending");
+
+  return (
+    <div>
+      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: "#111827" }}>User management</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Assign roles and access levels to staff who have signed in.</div>
+
+      {pendingUsers.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#991b1b", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{pendingUsers.length} pending</span>
+            Awaiting approval
+          </div>
+          {pendingUsers.map(user => (
+            <div key={user.id} style={{ background: "#FEF2F2", border: "0.5px solid #fca5a5", borderRadius: 10, padding: 14, marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>{user.email}</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Signed up: {new Date(user.created_at).toLocaleDateString()}</div>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Assign role</div>
+                  <select defaultValue="battalion_staff" id={`role-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
+                    {roleOptions.filter(r => r !== "pending").map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade (if applicable)</div>
+                  <select defaultValue="" id={`brigade-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
+                    <option value="">None</option>
+                    {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion (if applicable)</div>
+                <select defaultValue="" id={`battalion-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
+                  <option value="">None</option>
+                  {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+                </select>
+              </div>
+              <button onClick={() => {
+                const role = document.getElementById(`role-${user.id}`).value;
+                const brigade_id = document.getElementById(`brigade-${user.id}`).value || null;
+                const battalion_id = document.getElementById(`battalion-${user.id}`).value || null;
+                updateUser(user.id, { role, brigade_id, battalion_id });
+              }} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>
+                {saving[user.id] ? "Saving..." : "Approve and assign role"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 10 }}>Active users ({activeUsers.length})</div>
+        <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          {loading ? (
+            <div style={{ padding: 20, textAlign: "center", color: "#6b7280" }}>Loading...</div>
+          ) : activeUsers.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "#6b7280", fontSize: 13 }}>No active users yet</div>
+          ) : activeUsers.map(user => (
+            <div key={user.id} style={{ padding: "12px 14px", borderBottom: "0.5px solid #f3f4f6" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280" }}>{user.email}</div>
+                </div>
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: "#E6F1FB", color: "#0C447C" }}>{user.role.replace(/_/g, " ")}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Role</div>
+                  <select value={user.role} onChange={e => updateUser(user.id, { role: e.target.value })} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, background: "#fff", color: "#111827" }}>
+                    {roleOptions.map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Brigade</div>
+                  <select value={user.brigade_id || ""} onChange={e => updateUser(user.id, { brigade_id: e.target.value || null })} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, background: "#fff", color: "#111827" }}>
+                    <option value="">None</option>
+                    {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Battalion</div>
+                  <select value={user.battalion_id || ""} onChange={e => updateUser(user.id, { battalion_id: e.target.value || null })} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, background: "#fff", color: "#111827" }}>
+                    <option value="">None</option>
+                    {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -238,12 +404,10 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   function getStateInv(itemId) {
     return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 };
   }
-
   function getWarehouse(itemId) {
     if (warehouseEdits[itemId] !== undefined) return warehouseEdits[itemId];
     return getStateInv(itemId).qty_warehouse || 0;
   }
-
   function getThreshold(itemId) {
     if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId];
     return getStateInv(itemId).shortage_threshold ?? 0;
@@ -253,17 +417,9 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     setSaving(true);
     for (const itemId of Object.keys({ ...warehouseEdits, ...thresholdEdits })) {
       const existing = stateInventory.find(s => s.catalog_item_id === itemId);
-      const data = {
-        catalog_item_id: itemId,
-        qty_warehouse: getWarehouse(itemId),
-        shortage_threshold: getThreshold(itemId),
-        updated_at: new Date().toISOString(),
-      };
-      if (existing) {
-        await supabase.from("state_inventory").update(data).eq("id", existing.id);
-      } else {
-        await supabase.from("state_inventory").insert([data]);
-      }
+      const data = { catalog_item_id: itemId, qty_warehouse: getWarehouse(itemId), shortage_threshold: getThreshold(itemId), updated_at: new Date().toISOString() };
+      if (existing) await supabase.from("state_inventory").update(data).eq("id", existing.id);
+      else await supabase.from("state_inventory").insert([data]);
     }
     await fetchAll();
     setWarehouseEdits({});
@@ -283,13 +439,11 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
           </div>
         ))}
       </div>
-
       {hasEdits && (
         <button onClick={saveStateInventory} disabled={saving} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", marginBottom: 16, fontWeight: 500 }}>
           {saving ? "Saving..." : "Save warehouse inventory"}
         </button>
       )}
-
       {SECTIONS.map(section => (
         <div key={section.header} style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.header}</div>
@@ -363,12 +517,7 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
 
   function getBatAlert(bat) {
     const batInv = inventory.filter(i => i.battalion_id === bat.id);
-    return batInv.some(i => {
-      const threshold = i.shortage_threshold || 0;
-      if (threshold === 0) return false;
-      const inStock = Math.max(0, (i.qty_serviceable || 0) - (i.qty_issued || 0));
-      return inStock < threshold;
-    });
+    return batInv.some(i => { const t = i.shortage_threshold || 0; if (!t) return false; return Math.max(0, (i.qty_serviceable || 0) - (i.qty_issued || 0)) < t; });
   }
 
   return (
@@ -470,25 +619,18 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
   const bat = battalions.find(b => b.id === selectedBat);
   const brig = bat ? brigades.find(b => b.id === bat.brigade_id) : null;
 
-  function getInvRow(itemId) {
-    return inventory.find(i => i.battalion_id === selectedBat && i.catalog_item_id === itemId);
-  }
-
+  function getInvRow(itemId) { return inventory.find(i => i.battalion_id === selectedBat && i.catalog_item_id === itemId); }
   function getEdit(itemId, field) {
     const inv = getInvRow(itemId);
-    if (edits[itemId] !== undefined && edits[itemId][field] !== undefined) return edits[itemId][field];
+    if (edits[itemId]?.[field] !== undefined) return edits[itemId][field];
     return inv ? (inv[field] || 0) : 0;
   }
-
   function getThreshold(itemId) {
     if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId];
     const inv = getInvRow(itemId);
     return inv ? (inv.shortage_threshold || 0) : 0;
   }
-
-  function setEdit(itemId, field, value) {
-    setEdits(e => ({ ...e, [itemId]: { ...e[itemId], [field]: parseInt(value) || 0 } }));
-  }
+  function setEdit(itemId, field, value) { setEdits(e => ({ ...e, [itemId]: { ...e[itemId], [field]: parseInt(value) || 0 } })); }
 
   async function saveAll() {
     setSaving(true);
@@ -496,20 +638,9 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
     for (const item of allItems) {
       if (!edits[item.id] && !thresholdEdits[item.id]) continue;
       const existing = getInvRow(item.id);
-      const data = {
-        battalion_id: selectedBat,
-        catalog_item_id: item.id,
-        qty_serviceable: getEdit(item.id, "qty_serviceable"),
-        qty_unserviceable: getEdit(item.id, "qty_unserviceable"),
-        qty_issued: getEdit(item.id, "qty_issued"),
-        shortage_threshold: getThreshold(item.id),
-        updated_at: new Date().toISOString(),
-      };
-      if (existing) {
-        await supabase.from("inventory").update(data).eq("id", existing.id);
-      } else {
-        await supabase.from("inventory").insert([data]);
-      }
+      const data = { battalion_id: selectedBat, catalog_item_id: item.id, qty_serviceable: getEdit(item.id, "qty_serviceable"), qty_unserviceable: getEdit(item.id, "qty_unserviceable"), qty_issued: getEdit(item.id, "qty_issued"), shortage_threshold: getThreshold(item.id), updated_at: new Date().toISOString() };
+      if (existing) await supabase.from("inventory").update(data).eq("id", existing.id);
+      else await supabase.from("inventory").insert([data]);
     }
     await fetchAll();
     setEdits({});
@@ -525,39 +656,21 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
     let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;font-weight:normal;color:#555;margin-bottom:20px}h3{font-size:13px;text-transform:uppercase;text-decoration:underline;margin:20px 0 8px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{text-align:left;padding:6px 10px;background:#f3f4f6;font-size:11px;border-bottom:1px solid #e5e7eb}td{padding:6px 10px;border-bottom:0.5px solid #f3f4f6}.highlighted{background:#FEF9C3;font-weight:bold}.footer{margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#555}</style></head><body><h1>CACC Supply Requisition — ${bat.unit_number} ${bat.school_name}</h1><h2>Date: ${dateStr} | Brigade: ${brig?.name} | Commandant: ${bat.commandant_name || "N/A"}</h2>`;
     SECTIONS.forEach(section => {
       html += `<h3>${section.header}</h3><table><thead><tr><th>Item</th><th>Size</th><th>Qty requested</th></tr></thead><tbody>`;
-      section.groups.forEach(g => {
-        (categories[g] || []).forEach(item => {
-          const qty = supplyQtys[item.id] || 0;
-          html += `<tr${qty > 0 ? ' class="highlighted"' : ''}><td>${item.item_name}</td><td>${item.size_label}</td><td>${qty > 0 ? qty : ""}</td></tr>`;
-        });
-      });
+      section.groups.forEach(g => { (categories[g] || []).forEach(item => { const qty = supplyQtys[item.id] || 0; html += `<tr${qty > 0 ? ' class="highlighted"' : ''}><td>${item.item_name}</td><td>${item.size_label}</td><td>${qty > 0 ? qty : ""}</td></tr>`; }); });
       html += `</tbody></table>`;
     });
     html += `<div class="footer"><strong>Unit:</strong> ${bat.unit_number} | <strong>School:</strong> ${bat.school_name} | <strong>Email:</strong> ${bat.commandant_email || "N/A"} | <strong>Phone:</strong> ${bat.phone || "N/A"}</div></body></html>`;
-    const w = window.open("", "_blank");
-    w.document.write(html);
-    w.document.close();
-    w.print();
+    const w = window.open("", "_blank"); w.document.write(html); w.document.close(); w.print();
   }
 
   function exportSupplyExcel() {
     const date = new Date();
     const dateStr = `${date.getDate().toString().padStart(2,"0")}-${(date.getMonth()+1).toString().padStart(2,"0")}-${date.getFullYear()}`;
     let csv = `CACC Supply Requisition - ${bat.unit_number} - ${bat.school_name}\nDate: ${dateStr}\nBrigade: ${brig?.name}\nCommandant: ${bat.commandant_name || ""}\nEmail: ${bat.commandant_email || ""}\nPhone: ${bat.phone || ""}\n\nSection,Item,Size,Qty requested\n`;
-    SECTIONS.forEach(section => {
-      section.groups.forEach(g => {
-        (categories[g] || []).forEach(item => {
-          const qty = supplyQtys[item.id] || 0;
-          if (qty > 0) csv += `${section.header},"${item.item_name}","${item.size_label}",${qty}\n`;
-        });
-      });
-    });
+    SECTIONS.forEach(section => { section.groups.forEach(g => { (categories[g] || []).forEach(item => { const qty = supplyQtys[item.id] || 0; if (qty > 0) csv += `${section.header},"${item.item_name}","${item.size_label}",${qty}\n`; }); }); });
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Supply-Request-${bat.unit_number}-${dateStr}.csv`;
-    a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `Supply-Request-${bat.unit_number}-${dateStr}.csv`; a.click();
   }
 
   const hasEdits = Object.keys({ ...edits, ...thresholdEdits }).length > 0;
@@ -568,7 +681,6 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
         <option value="">Select a battalion...</option>
         {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
       </select>
-
       {bat && (
         <>
           <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, padding: 14, marginBottom: 16 }}>
@@ -581,15 +693,12 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
               ))}
             </div>
           </div>
-
           <button onClick={saveAll} disabled={saving || !hasEdits} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: hasEdits ? "#185FA5" : "#d1d5db", color: "#fff", fontSize: 14, cursor: hasEdits ? "pointer" : "default", marginBottom: 16, fontWeight: 500 }}>
             {saving ? "Saving..." : saved ? "Saved!" : "Save inventory"}
           </button>
-
           <div style={{ marginBottom: 12, padding: "10px 14px", background: "#E6F1FB", borderRadius: 8, fontSize: 13, color: "#0C447C" }}>
             Tap any category to expand it, update the numbers, then tap Save inventory.
           </div>
-
           {SECTIONS.map(section => (
             <div key={section.header} style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.header}</div>
@@ -647,7 +756,6 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
               })}
             </div>
           ))}
-
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8, marginBottom: 24 }}>
             <button onClick={() => setShowSupply(s => !s)} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "0.5px solid #185FA5", background: showSupply ? "#185FA5" : "#fff", color: showSupply ? "#fff" : "#185FA5", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>
               {showSupply ? "Hide supply request" : "Supply request form"}
@@ -656,7 +764,6 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
               Email HQ logistics
             </button>
           </div>
-
           {showSupply && (
             <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 24 }}>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: "#111827" }}>Supply requisition form</div>
