@@ -6,6 +6,25 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+const SECTIONS = [
+  {
+    header: "Accoutrements",
+    groups: ["Accoutrements Class A", "Accoutrements Class B"],
+  },
+  {
+    header: "Uniforms",
+    groups: ["Class A Uniform", "Class B Uniform", "Class C Uniform", "PT Uniform"],
+  },
+  {
+    header: "Ribbons",
+    groups: ["Ribbons", "Ribbon Backers / Devices"],
+  },
+  {
+    header: "Patches",
+    groups: ["Position Patches"],
+  },
+];
+
 export default function App() {
   const [page, setPage] = useState("state");
   const [categories, setCategories] = useState({});
@@ -95,36 +114,47 @@ function StateDashboard({ categories, brigades, battalions }) {
           </div>
         ))}
       </div>
-      <div style={{ marginBottom: 16, fontWeight: 500, fontSize: 14 }}>Uniform catalog</div>
-      {Object.entries(categories).map(([cat, items]) => (
-        <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
-          <div onClick={() => toggleCat(cat)} style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
-            <span style={{ fontWeight: 500, fontSize: 14 }}>{cat}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 999 }}>{items.length} items</span>
-              <span style={{ fontSize: 12, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
-            </div>
+
+      {SECTIONS.map(section => (
+        <div key={section.header} style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, textDecoration: "underline", marginBottom: 12, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            {section.header}
           </div>
-          {open[cat] && (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr>{["Item", "Size / variant", "Status"].map(h => <th key={h} style={{ textAlign: "left", padding: "8px 16px", borderBottom: "0.5px solid #e5e7eb", color: "#6b7280", fontWeight: 500, fontSize: 11 }}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {items.map(item => (
-                  <tr key={item.id} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
-                    <td style={{ padding: "8px 16px" }}>{item.item_name}</td>
-                    <td style={{ padding: "8px 16px", color: "#6b7280" }}>{item.size_label}</td>
-                    <td style={{ padding: "8px 16px" }}>
-                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: item.in_stock ? "#dcfce7" : "#fee2e2", color: item.in_stock ? "#166534" : "#991b1b" }}>
-                        {item.in_stock ? "In stock" : "Out of stock"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          {section.groups.map(cat => {
+            const items = categories[cat] || [];
+            if (items.length === 0) return null;
+            return (
+              <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
+                <div onClick={() => toggleCat(cat)} style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
+                  <span style={{ fontWeight: 500, fontSize: 14, color: "#111827" }}>{cat}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 999 }}>{items.length} items</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
+                  </div>
+                </div>
+                {open[cat] && (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr>{["Item", "Size / variant", "Status"].map(h => <th key={h} style={{ textAlign: "left", padding: "8px 16px", borderBottom: "0.5px solid #e5e7eb", color: "#6b7280", fontWeight: 500, fontSize: 11 }}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {items.map(item => (
+                        <tr key={item.id} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
+                          <td style={{ padding: "8px 16px", color: "#111827" }}>{item.item_name}</td>
+                          <td style={{ padding: "8px 16px", color: "#6b7280" }}>{item.size_label}</td>
+                          <td style={{ padding: "8px 16px" }}>
+                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: item.in_stock ? "#dcfce7" : "#fee2e2", color: item.in_stock ? "#166534" : "#991b1b" }}>
+                              {item.in_stock ? "In stock" : "Out of stock"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>
@@ -166,9 +196,9 @@ function BrigadePage({ brigades, battalions }) {
               <tbody>
                 {bats.map(bat => (
                   <tr key={bat.id} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
-                    <td style={{ padding: "8px 16px", fontWeight: 500 }}>{bat.unit_number}</td>
-                    <td style={{ padding: "8px 16px" }}>{bat.school_name}</td>
-                    <td style={{ padding: "8px 16px" }}>{bat.cadet_count}</td>
+                    <td style={{ padding: "8px 16px", fontWeight: 500, color: "#111827" }}>{bat.unit_number}</td>
+                    <td style={{ padding: "8px 16px", color: "#111827" }}>{bat.school_name}</td>
+                    <td style={{ padding: "8px 16px", color: "#111827" }}>{bat.cadet_count}</td>
                     <td style={{ padding: "8px 16px" }}>
                       <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: bat.status === "active" ? "#dcfce7" : "#f3f4f6", color: bat.status === "active" ? "#166534" : "#6b7280" }}>
                         {bat.status}
@@ -201,12 +231,12 @@ function BattalionPage({ brigades, battalions }) {
       {bat && (
         <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 20 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
-            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Unit</div><div style={{ fontWeight: 500 }}>{bat.unit_number}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>School</div><div style={{ fontWeight: 500 }}>{bat.school_name}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Brigade</div><div style={{ fontWeight: 500 }}>{brig?.name}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Cadets</div><div style={{ fontWeight: 500 }}>{bat.cadet_count}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Status</div><div style={{ fontWeight: 500 }}>{bat.status}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Commandant</div><div style={{ fontWeight: 500 }}>{bat.commandant_name || "Not set"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Unit</div><div style={{ fontWeight: 500, color: "#111827" }}>{bat.unit_number}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>School</div><div style={{ fontWeight: 500, color: "#111827" }}>{bat.school_name}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Brigade</div><div style={{ fontWeight: 500, color: "#111827" }}>{brig?.name}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Cadets</div><div style={{ fontWeight: 500, color: "#111827" }}>{bat.cadet_count}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Status</div><div style={{ fontWeight: 500, color: "#111827" }}>{bat.status}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Commandant</div><div style={{ fontWeight: 500, color: "#111827" }}>{bat.commandant_name || "Not set"}</div></div>
           </div>
           <div style={{ padding: 16, background: "#f9fafb", borderRadius: 8, fontSize: 13, color: "#6b7280", textAlign: "center" }}>
             Inventory tracking for this battalion coming next session
@@ -241,7 +271,7 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
       </div>
       {showForm && (
         <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
-          <div style={{ fontWeight: 500, marginBottom: 16 }}>Add new unit</div>
+          <div style={{ fontWeight: 500, marginBottom: 16, color: "#111827" }}>Add new unit</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {[["unit_number", "Unit number (e.g. 1-105)"], ["school_name", "School name"], ["school_address", "School address"], ["cadet_count", "Number of cadets"], ["commandant_name", "Commandant name and rank"], ["commandant_email", "Commandant email"], ["phone", "Phone number"]].map(([field, label]) => (
               <div key={field}>
@@ -275,10 +305,10 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
               const brig = brigades.find(b => b.id === bat.brigade_id);
               return (
                 <tr key={bat.id} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
-                  <td style={{ padding: "8px 16px", fontWeight: 500 }}>{bat.unit_number}</td>
-                  <td style={{ padding: "8px 16px" }}>{bat.school_name}</td>
+                  <td style={{ padding: "8px 16px", fontWeight: 500, color: "#111827" }}>{bat.unit_number}</td>
+                  <td style={{ padding: "8px 16px", color: "#111827" }}>{bat.school_name}</td>
                   <td style={{ padding: "8px 16px", color: "#6b7280" }}>{brig?.name}</td>
-                  <td style={{ padding: "8px 16px" }}>{bat.cadet_count}</td>
+                  <td style={{ padding: "8px 16px", color: "#111827" }}>{bat.cadet_count}</td>
                   <td style={{ padding: "8px 16px" }}>
                     <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: bat.status === "active" ? "#dcfce7" : "#f3f4f6", color: bat.status === "active" ? "#166534" : "#6b7280" }}>
                       {bat.status}
@@ -296,6 +326,8 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
 
 function CatalogPage({ categories, fetchAll }) {
   const [updating, setUpdating] = useState(null);
+  const [open, setOpen] = useState({});
+  const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
 
   async function toggleStock(item) {
     setUpdating(item.id);
@@ -309,32 +341,51 @@ function CatalogPage({ categories, fetchAll }) {
       <div style={{ marginBottom: 16, padding: "12px 16px", background: "#EAF3DE", borderRadius: 8, fontSize: 13, color: "#27500A" }}>
         State HQ only — toggle items in/out of stock. Changes apply instantly across all dashboards.
       </div>
-      {Object.entries(categories).map(([cat, items]) => (
-        <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
-          <div style={{ padding: "12px 16px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", fontWeight: 500, fontSize: 14 }}>{cat}</div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr>{["Item", "Size / variant", "Status", "Action"].map(h => <th key={h} style={{ textAlign: "left", padding: "8px 16px", borderBottom: "0.5px solid #e5e7eb", color: "#6b7280", fontWeight: 500, fontSize: 11 }}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {items.map(item => (
-                <tr key={item.id} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
-                  <td style={{ padding: "8px 16px" }}>{item.item_name}</td>
-                  <td style={{ padding: "8px 16px", color: "#6b7280" }}>{item.size_label}</td>
-                  <td style={{ padding: "8px 16px" }}>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: item.in_stock ? "#dcfce7" : "#fee2e2", color: item.in_stock ? "#166534" : "#991b1b" }}>
-                      {item.in_stock ? "In stock" : "Out of stock"}
-                    </span>
-                  </td>
-                  <td style={{ padding: "8px 16px" }}>
-                    <button onClick={() => toggleStock(item)} disabled={updating === item.id} style={{ padding: "4px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#111827" }}>
-                      {updating === item.id ? "Saving..." : item.in_stock ? "Mark out of stock" : "Mark in stock"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {SECTIONS.map(section => (
+        <div key={section.header} style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, textDecoration: "underline", marginBottom: 12, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            {section.header}
+          </div>
+          {section.groups.map(cat => {
+            const items = categories[cat] || [];
+            if (items.length === 0) return null;
+            return (
+              <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
+                <div onClick={() => toggleCat(cat)} style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
+                  <span style={{ fontWeight: 500, fontSize: 14, color: "#111827" }}>{cat}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 999 }}>{items.length} items</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
+                  </div>
+                </div>
+                {open[cat] && (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr>{["Item", "Size / variant", "Status", "Action"].map(h => <th key={h} style={{ textAlign: "left", padding: "8px 16px", borderBottom: "0.5px solid #e5e7eb", color: "#6b7280", fontWeight: 500, fontSize: 11 }}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {items.map(item => (
+                        <tr key={item.id} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
+                          <td style={{ padding: "8px 16px", color: "#111827" }}>{item.item_name}</td>
+                          <td style={{ padding: "8px 16px", color: "#6b7280" }}>{item.size_label}</td>
+                          <td style={{ padding: "8px 16px" }}>
+                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: item.in_stock ? "#dcfce7" : "#fee2e2", color: item.in_stock ? "#166534" : "#991b1b" }}>
+                              {item.in_stock ? "In stock" : "Out of stock"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "8px 16px" }}>
+                            <button onClick={() => toggleStock(item)} disabled={updating === item.id} style={{ padding: "4px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#111827" }}>
+                              {updating === item.id ? "Saving..." : item.in_stock ? "Mark out of stock" : "Mark in stock"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>
