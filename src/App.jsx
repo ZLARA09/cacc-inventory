@@ -167,4 +167,3 @@ function BattalionPage() {
 function UnitsPage() {
   return <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 14 }}>Unit management — coming next session</div>;
 }
-```
