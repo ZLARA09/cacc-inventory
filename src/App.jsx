@@ -6,6 +6,18 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+const RESEND_KEY = import.meta.env.VITE_RESEND_API_KEY;
+
+async function sendEmail(to, subject, html) {
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${RESEND_KEY}` },
+      body: JSON.stringify({ from: "CACC Inventory <onboarding@resend.dev>", to, subject, html }),
+    });
+  } catch (e) { console.error("Email error:", e); }
+}
+
 const SECTIONS = [
   { header: "Accoutrements", groups: ["Accoutrements Class A", "Accoutrements Class B"] },
   { header: "Uniforms", groups: ["Class A Uniform", "Class B Uniform", "Class C Uniform", "PT Uniform"] },
@@ -26,11 +38,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
-  const [requestForm, setRequestForm] = useState({ first_name: "", last_name: "", rank: "", phone: "", school_email: "", cacc_email: "", brigade_id: "", battalion_id: "" });
+  const [requestType, setRequestType] = useState("commandant");
+  const [requestForm, setRequestForm] = useState({ first_name: "", last_name: "", rank: "", phone: "", school_email: "", cacc_email: "", commandant_email: "", brigade_id: "", battalion_id: "" });
   const [requestBrigades, setRequestBrigades] = useState([]);
   const [requestBattalions, setRequestBattalions] = useState([]);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [requestSaving, setRequestSaving] = useState(false);
+  const [showStaffLogin, setShowStaffLogin] = useState(false);
+  const [staffEmail, setStaffEmail] = useState("");
+  const [staffPassword, setStaffPassword] = useState("");
+  const [staffLoginError, setStaffLoginError] = useState("");
 
   useEffect(() => {
     fetchPublicData();
@@ -65,9 +82,10 @@ export default function App() {
       setUserRole(existing);
       setAuthLoading(false);
       if (existing.role !== "pending") fetchAll();
-    } else if (email.endsWith("@cacadets.org")) {
+    } else if (email.endsWith("@cacadets.org") || email.endsWith("@cacc.internal")) {
       const newUser = { user_id: session.user.id, email, full_name: name, role: "pending" };
       await supabase.from("user_roles").insert([newUser]);
+      await sendEmail("zak.lara@cacadets.org", "New CACC Inventory user — action required", `<p>New user signed in: <strong>${name}</strong> (${email})</p><p>Log in to approve their access at <a href="https://cacc-inventory.vercel.app">cacc-inventory.vercel.app</a></p>`);
       setUserRole({ ...newUser, role: "pending" });
       setAuthLoading(false);
     } else {
@@ -102,15 +120,25 @@ export default function App() {
 
   async function submitAccountRequest() {
     if (!requestForm.first_name || !requestForm.last_name || !requestForm.school_email) {
-      alert("Please fill in at least your first name, last name, and school email.");
+      alert("Please fill in at least your first name, last name, and email.");
       return;
     }
     setRequestSaving(true);
     await supabase.from("account_requests").insert([{
       ...requestForm,
+      rank: requestForm.rank || null,
       brigade_id: requestForm.brigade_id || null,
       battalion_id: requestForm.battalion_id || null,
+      request_type: requestType,
     }]);
+    await sendEmail(
+      "zak.lara@cacadets.org",
+      `New ${requestType} account request — ${requestForm.first_name} ${requestForm.last_name}`,
+      `<p><strong>${requestForm.rank || ""} ${requestForm.first_name} ${requestForm.last_name}</strong> has requested a ${requestType} account.</p>
+      <p>Email: ${requestForm.school_email}</p>
+      ${requestType === "cadet" ? `<p>Commandant email: ${requestForm.commandant_email}</p>` : ""}
+      <p>Review and approve at <a href="https://cacc-inventory.vercel.app">cacc-inventory.vercel.app</a> → User management</p>`
+    );
     setRequestSaving(false);
     setRequestSubmitted(true);
   }
@@ -120,6 +148,12 @@ export default function App() {
       provider: "azure",
       options: { scopes: "email", redirectTo: window.location.origin },
     });
+  }
+
+  async function signInWithPassword() {
+    setStaffLoginError("");
+    const { error } = await supabase.auth.signInWithPassword({ email: staffEmail, password: staffPassword });
+    if (error) setStaffLoginError("Invalid username or password. Please try again.");
   }
 
   async function signOut() {
@@ -144,7 +178,7 @@ export default function App() {
           <div style={{ background: "#fff", borderRadius: 16, padding: 32, border: "0.5px solid #e5e7eb", textAlign: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
             <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>California Cadet Corps — Supply Management</div>
-            <button onClick={signInWithMicrosoft} style={{ width: "100%", padding: "14px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 15, cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, fontWeight: 500, marginBottom: 12 }}>
+            <button onClick={signInWithMicrosoft} style={{ width: "100%", padding: "14px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 15, cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, fontWeight: 500, marginBottom: 10 }}>
               <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
                 <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
                 <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
@@ -153,17 +187,41 @@ export default function App() {
               </svg>
               Sign in with Microsoft
             </button>
+            <button onClick={() => setShowStaffLogin(s => !s)} style={{ width: "100%", padding: "12px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#f9fafb", fontSize: 14, cursor: "pointer", color: "#6b7280", marginBottom: 10 }}>
+              Staff / approved account login
+            </button>
+            {showStaffLogin && (
+              <div style={{ textAlign: "left", marginBottom: 10 }}>
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Username</div>
+                  <input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="Username or email" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password</div>
+                  <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && signInWithPassword()} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                </div>
+                {staffLoginError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 8 }}>{staffLoginError}</div>}
+                <button onClick={signInWithPassword} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>Sign in</button>
+              </div>
+            )}
             <div style={{ borderTop: "0.5px solid #f3f4f6", paddingTop: 12 }}>
               <button onClick={() => setShowRequestForm(s => !s)} style={{ width: "100%", padding: "12px 20px", borderRadius: 10, border: "0.5px solid #185FA5", background: "#E6F1FB", fontSize: 14, cursor: "pointer", color: "#185FA5", fontWeight: 500 }}>
-                {showRequestForm ? "Hide request form" : "Request commandant account via school email"}
+                {showRequestForm ? "Hide request form" : "Request commandant / cadet account"}
               </button>
             </div>
           </div>
 
           {showRequestForm && !requestSubmitted && (
             <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "0.5px solid #e5e7eb" }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 4 }}>Request an account</div>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Fill out your information and State HQ will approve your access.</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Request an account</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                <button onClick={() => setRequestType("commandant")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "commandant" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "commandant" ? "#E6F1FB" : "#fff", color: requestType === "commandant" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "commandant" ? 600 : 400 }}>
+                  Commandant
+                </button>
+                <button onClick={() => setRequestType("cadet")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "cadet" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "cadet" ? "#E6F1FB" : "#fff", color: requestType === "cadet" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "cadet" ? 600 : 400 }}>
+                  Supply cadet
+                </button>
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div>
@@ -177,8 +235,8 @@ export default function App() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Rank</div>
-                    <input value={requestForm.rank} onChange={e => setRequestForm(f => ({ ...f, rank: e.target.value }))} placeholder="e.g. MAJ, CPT" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{requestType === "cadet" ? "Cadet rank" : "Rank"}</div>
+                    <input value={requestForm.rank} onChange={e => setRequestForm(f => ({ ...f, rank: e.target.value }))} placeholder={requestType === "cadet" ? "e.g. C/SGT" : "e.g. MAJ"} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Phone number</div>
@@ -186,13 +244,21 @@ export default function App() {
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>School email *</div>
-                  <input value={requestForm.school_email} onChange={e => setRequestForm(f => ({ ...f, school_email: e.target.value }))} placeholder="you@school.edu" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{requestType === "cadet" ? "School email *" : "Email *"}</div>
+                  <input value={requestForm.school_email} onChange={e => setRequestForm(f => ({ ...f, school_email: e.target.value }))} placeholder={requestType === "cadet" ? "your.name@school.edu" : "you@school.edu"} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>CACC email (if you have one)</div>
-                  <input value={requestForm.cacc_email} onChange={e => setRequestForm(f => ({ ...f, cacc_email: e.target.value }))} placeholder="you@cacadets.org" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
-                </div>
+                {requestType === "commandant" && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>CACC email (if you have one)</div>
+                    <input value={requestForm.cacc_email} onChange={e => setRequestForm(f => ({ ...f, cacc_email: e.target.value }))} placeholder="you@cacadets.org" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  </div>
+                )}
+                {requestType === "cadet" && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Commandant email (for approval) *</div>
+                    <input value={requestForm.commandant_email} onChange={e => setRequestForm(f => ({ ...f, commandant_email: e.target.value }))} placeholder="your.commandant@school.edu" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  </div>
+                )}
                 <div>
                   <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade</div>
                   <select value={requestForm.brigade_id} onChange={e => setRequestForm(f => ({ ...f, brigade_id: e.target.value, battalion_id: "" }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827" }}>
@@ -233,7 +299,7 @@ export default function App() {
           <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
           <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>Your email is not authorized for this system.</div>
           <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#FEF2F2", borderRadius: 8 }}>
-            Signed in as: <strong>{session.user.email}</strong><br/>Only @cacadets.org accounts are permitted.
+            Signed in as: <strong>{session.user.email}</strong><br/>Only authorized accounts are permitted.
           </div>
           <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Sign out</button>
         </div>
@@ -262,7 +328,6 @@ export default function App() {
     { id: "brigade", label: "Brigade inventory" },
     { id: "battalion", label: "Battalion dashboard" },
     { id: "units", label: "Unit management" },
-    { id: "catalog", label: "Catalog admin" },
     ...(userRole.role === "state_admin" ? [{ id: "users", label: "User management" }] : []),
   ];
 
@@ -320,8 +385,7 @@ export default function App() {
             {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} />}
             {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchAll={fetchAll} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchAll={fetchAll} />}
-            {page === "catalog" && <CatalogPage categories={categories} fetchAll={fetchAll} />}
-            {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} />}
+            {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} fetchAll={fetchAll} />}
           </>
         )}
       </div>
@@ -329,7 +393,7 @@ export default function App() {
   );
 }
 
-function UserManagement({ brigades, battalions }) {
+function UserManagement({ brigades, battalions, fetchAll }) {
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -357,14 +421,17 @@ function UserManagement({ brigades, battalions }) {
 
   async function approveRequest(req) {
     setSaving(s => ({ ...s, [req.id]: true }));
+    const fullName = `${req.rank ? req.rank + " " : ""}${req.first_name} ${req.last_name}`;
     await supabase.from("user_roles").insert([{
       email: req.school_email,
-      full_name: `${req.rank ? req.rank + " " : ""}${req.first_name} ${req.last_name}`,
-      role: "battalion_staff",
+      full_name: fullName,
+      role: req.request_type === "cadet" ? "battalion_staff" : "battalion_staff",
       brigade_id: req.brigade_id || null,
       battalion_id: req.battalion_id || null,
+      status: "active",
     }]);
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
+    await sendEmail("zak.lara@cacadets.org", `Account approved — ${fullName}`, `<p>Account for <strong>${fullName}</strong> (${req.school_email}) has been approved.</p>`);
     await fetchData();
     setSaving(s => ({ ...s, [req.id]: false }));
   }
@@ -374,9 +441,19 @@ function UserManagement({ brigades, battalions }) {
     await fetchData();
   }
 
-  const roleOptions = ["pending", "battalion_staff", "brigade_staff", "admin", "state_admin"];
-  const pendingUsers = users.filter(u => u.role === "pending");
-  const activeUsers = users.filter(u => u.role !== "pending");
+  const roleGroups = [
+    { role: "state_admin", label: "State admin", color: "#185FA5", bg: "#E6F1FB" },
+    { role: "admin", label: "Admin — logistics", color: "#27500A", bg: "#EAF3DE" },
+    { role: "brigade_staff", label: "Brigade staff", color: "#92400e", bg: "#fef3c7" },
+    { role: "battalion_staff", label: "Battalion staff", color: "#374151", bg: "#f3f4f6" },
+    { role: "pending", label: "Pending", color: "#991b1b", bg: "#fee2e2" },
+  ];
+
+  const statusOptions = [
+    { value: "active", label: "Active", color: "#166534", bg: "#dcfce7" },
+    { value: "pending", label: "Pending", color: "#92400e", bg: "#fef3c7" },
+    { value: "inactive", label: "Inactive", color: "#991b1b", bg: "#fee2e2" },
+  ];
 
   return (
     <div>
@@ -386,15 +463,19 @@ function UserManagement({ brigades, battalions }) {
       {requests.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#0C447C", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ background: "#E6F1FB", color: "#0C447C", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{requests.length}</span>
-            Account requests — school email
+            <span style={{ background: "#E6F1FB", color: "#0C447C", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{requests.length} new</span>
+            Account requests
           </div>
           {requests.map(req => (
             <div key={req.id} style={{ background: "#E6F1FB", border: "0.5px solid #93c5fd", borderRadius: 10, padding: 14, marginBottom: 10 }}>
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{req.rank} {req.first_name} {req.last_name}</div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>School email: {req.school_email}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{req.rank} {req.first_name} {req.last_name}</div>
+                  <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 999, background: req.request_type === "cadet" ? "#fef3c7" : "#E6F1FB", color: req.request_type === "cadet" ? "#92400e" : "#0C447C" }}>{req.request_type || "commandant"}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>Email: {req.school_email}</div>
                 {req.cacc_email && <div style={{ fontSize: 12, color: "#6b7280" }}>CACC email: {req.cacc_email}</div>}
+                {req.commandant_email && <div style={{ fontSize: 12, color: "#6b7280" }}>Commandant: {req.commandant_email}</div>}
                 {req.phone && <div style={{ fontSize: 12, color: "#6b7280" }}>Phone: {req.phone}</div>}
                 <div style={{ fontSize: 12, color: "#6b7280" }}>Brigade: {req.brigades?.name || "Not specified"}</div>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>Battalion: {req.battalions ? `${req.battalions.unit_number} — ${req.battalions.school_name}` : "Not specified"}</div>
@@ -404,105 +485,62 @@ function UserManagement({ brigades, battalions }) {
                 <button onClick={() => approveRequest(req)} disabled={saving[req.id]} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>
                   {saving[req.id] ? "..." : "Approve"}
                 </button>
-                <button onClick={() => denyRequest(req.id)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", fontSize: 13, cursor: "pointer" }}>
-                  Deny
-                </button>
+                <button onClick={() => denyRequest(req.id)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", fontSize: 13, cursor: "pointer" }}>Deny</button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {pendingUsers.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#991b1b", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{pendingUsers.length}</span>
-            Pending — cacadets.org accounts
-          </div>
-          {pendingUsers.map(user => (
-            <div key={user.id} style={{ background: "#FEF2F2", border: "0.5px solid #fca5a5", borderRadius: 10, padding: 14, marginBottom: 10 }}>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>{user.email}</div>
-                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Signed up: {new Date(user.created_at).toLocaleDateString()}</div>
+      {loading ? (
+        <div style={{ padding: 20, textAlign: "center", color: "#6b7280" }}>Loading users...</div>
+      ) : (
+        roleGroups.map(group => {
+          const groupUsers = users.filter(u => u.role === group.role);
+          if (groupUsers.length === 0) return null;
+          return (
+            <div key={group.role} style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: group.color, textTransform: "uppercase", textDecoration: "underline", letterSpacing: "0.04em" }}>{group.label}</span>
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: group.bg, color: group.color }}>{groupUsers.length}</span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Assign role</div>
-                  <select defaultValue="battalion_staff" id={`role-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
-                    {roleOptions.filter(r => r !== "pending").map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
-                  </select>
+              <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 120px", padding: "8px 14px", background: "#f9fafb", borderBottom: "0.5px solid #e5e7eb", gap: 8 }}>
+                  {["Name", "Role", "Brigade", "Battalion", "Status"].map(h => (
+                    <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>{h}</div>
+                  ))}
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade</div>
-                  <select defaultValue="" id={`brigade-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
-                    <option value="">None</option>
-                    {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
+                {groupUsers.map(user => (
+                  <div key={user.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 120px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
+                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{user.email}</div>
+                    </div>
+                    <select value={user.role} onChange={e => updateUser(user.id, { role: e.target.value })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
+                      {["pending", "battalion_staff", "brigade_staff", "admin", "state_admin"].map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+                    </select>
+                    <select value={user.brigade_id || ""} onChange={e => updateUser(user.id, { brigade_id: e.target.value || null })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
+                      <option value="">None</option>
+                      {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                    <select value={user.battalion_id || ""} onChange={e => updateUser(user.id, { battalion_id: e.target.value || null })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
+                      <option value="">None</option>
+                      {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+                    </select>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {statusOptions.map(s => (
+                        <button key={s.value} onClick={() => updateUser(user.id, { status: s.value })} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: user.status === s.value || (!user.status && s.value === "active") ? `1.5px solid ${s.color}` : "0.5px solid #e5e7eb", background: user.status === s.value || (!user.status && s.value === "active") ? s.bg : "#fff", color: user.status === s.value || (!user.status && s.value === "active") ? s.color : "#9ca3af", fontSize: 9, cursor: "pointer", fontWeight: 500 }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion</div>
-                <select defaultValue="" id={`battalion-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
-                  <option value="">None</option>
-                  {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
-                </select>
-              </div>
-              <button onClick={() => {
-                const role = document.getElementById(`role-${user.id}`).value;
-                const brigade_id = document.getElementById(`brigade-${user.id}`).value || null;
-                const battalion_id = document.getElementById(`battalion-${user.id}`).value || null;
-                updateUser(user.id, { role, brigade_id, battalion_id });
-              }} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>
-                {saving[user.id] ? "Saving..." : "Approve and assign role"}
-              </button>
             </div>
-          ))}
-        </div>
+          );
+        })
       )}
-
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 10 }}>Active users ({activeUsers.length})</div>
-        <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-          {loading ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#6b7280" }}>Loading...</div>
-          ) : activeUsers.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#6b7280", fontSize: 13 }}>No active users yet</div>
-          ) : activeUsers.map(user => (
-            <div key={user.id} style={{ padding: "12px 14px", borderBottom: "0.5px solid #f3f4f6" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>{user.email}</div>
-                </div>
-                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: "#E6F1FB", color: "#0C447C" }}>{user.role.replace(/_/g, " ")}</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Role</div>
-                  <select value={user.role} onChange={e => updateUser(user.id, { role: e.target.value })} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, background: "#fff", color: "#111827" }}>
-                    {roleOptions.map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Brigade</div>
-                  <select value={user.brigade_id || ""} onChange={e => updateUser(user.id, { brigade_id: e.target.value || null })} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, background: "#fff", color: "#111827" }}>
-                    <option value="">None</option>
-                    {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Battalion</div>
-                  <select value={user.battalion_id || ""} onChange={e => updateUser(user.id, { battalion_id: e.target.value || null })} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, background: "#fff", color: "#111827" }}>
-                    <option value="">None</option>
-                    {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -521,6 +559,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const [warehouseEdits, setWarehouseEdits] = useState({});
   const [thresholdEdits, setThresholdEdits] = useState({});
   const [saving, setSaving] = useState(false);
+  const [togglingStock, setTogglingStock] = useState(null);
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const activeBats = battalions.filter(b => b.status === "active");
   const totalCadets = battalions.reduce((s, b) => s + (b.cadet_count || 0), 0);
@@ -530,6 +569,13 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   function getStateInv(itemId) { return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 }; }
   function getWarehouse(itemId) { if (warehouseEdits[itemId] !== undefined) return warehouseEdits[itemId]; return getStateInv(itemId).qty_warehouse || 0; }
   function getThreshold(itemId) { if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId]; return getStateInv(itemId).shortage_threshold ?? 0; }
+
+  async function toggleStock(item) {
+    setTogglingStock(item.id);
+    await supabase.from("catalog_items").update({ in_stock: !item.in_stock }).eq("id", item.id);
+    await fetchAll();
+    setTogglingStock(null);
+  }
 
   async function saveStateInventory() {
     setSaving(true);
@@ -579,8 +625,9 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                 </div>
                 {open[cat] && (
                   <div>
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 90px 100px 80px 80px", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 60px 80px 90px 100px 80px 80px", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>Item / Size</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Stock</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Alert</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Warehouse</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Unserviceable</div>
@@ -594,16 +641,27 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                       const inStock = Math.max(0, warehouse - (batInv.qty_issued || 0));
                       const isAlert = threshold > 0 && inStock < threshold;
                       return (
-                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
+                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 60px 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
                           <div>
                             <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name}</div>
                             <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
                           </div>
-                          <div style={{ textAlign: "right" }}><input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
-                          <div style={{ textAlign: "right" }}><input type="number" min="0" value={warehouse} onChange={e => setWarehouseEdits(w => ({ ...w, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
+                          <div style={{ textAlign: "center" }}>
+                            <button onClick={() => toggleStock(item)} disabled={togglingStock === item.id} style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: item.in_stock ? "#dcfce7" : "#fee2e2", color: item.in_stock ? "#166534" : "#991b1b", fontSize: 10, cursor: "pointer", fontWeight: 500, width: "100%" }}>
+                              {togglingStock === item.id ? "..." : item.in_stock ? "In" : "Out"}
+                            </button>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <input type="number" min="0" value={warehouse} onChange={e => setWarehouseEdits(w => ({ ...w, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
+                          </div>
                           <div style={{ fontSize: 13, color: batInv.qty_unserviceable > 0 ? "#991b1b" : "#111827", textAlign: "right" }}>{batInv.qty_unserviceable}</div>
                           <div style={{ fontSize: 13, color: "#111827", textAlign: "right" }}>{batInv.qty_issued}</div>
-                          <div style={{ textAlign: "right" }}><span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280" }}>{inStock}</span></div>
+                          <div style={{ textAlign: "right" }}>
+                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280" }}>{inStock}</span>
+                          </div>
                         </div>
                       );
                     })}
@@ -991,63 +1049,6 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function CatalogPage({ categories, fetchAll }) {
-  const [updating, setUpdating] = useState(null);
-  const [open, setOpen] = useState({});
-  const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
-
-  async function toggleStock(item) {
-    setUpdating(item.id);
-    await supabase.from("catalog_items").update({ in_stock: !item.in_stock }).eq("id", item.id);
-    await fetchAll();
-    setUpdating(null);
-  }
-
-  return (
-    <div>
-      <div style={{ marginBottom: 14, padding: "12px 14px", background: "#EAF3DE", borderRadius: 8, fontSize: 13, color: "#27500A" }}>
-        State HQ only — toggle items in/out of stock. Changes apply instantly across all dashboards.
-      </div>
-      {SECTIONS.map(section => (
-        <div key={section.header} style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.header}</div>
-          {section.groups.map(cat => {
-            const items = categories[cat] || [];
-            if (items.length === 0) return null;
-            return (
-              <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
-                <div onClick={() => toggleCat(cat)} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
-                  <span style={{ fontWeight: 500, fontSize: 13, color: "#111827" }}>{cat}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 999 }}>{items.length}</span>
-                    <span style={{ fontSize: 11, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
-                  </div>
-                </div>
-                {open[cat] && items.map(item => (
-                  <div key={item.id} style={{ padding: "10px 14px", borderTop: "0.5px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 13, color: "#111827" }}>{item.item_name}</div>
-                      <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: item.in_stock ? "#dcfce7" : "#fee2e2", color: item.in_stock ? "#166534" : "#991b1b" }}>
-                        {item.in_stock ? "In stock" : "Out of stock"}
-                      </span>
-                      <button onClick={() => toggleStock(item)} disabled={updating === item.id} style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#111827" }}>
-                        {updating === item.id ? "..." : item.in_stock ? "Out" : "In"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      ))}
     </div>
   );
 }
