@@ -13,9 +13,7 @@ export default function App() {
   const [battalions, setBattalions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
   async function fetchAll() {
     setLoading(true);
@@ -134,7 +132,7 @@ function StateDashboard({ categories, brigades, battalions }) {
 }
 
 function BrigadePage({ brigades, battalions }) {
-  const [selectedBrigade, setSelectedBrigade] = useState(null);
+  const [selectedBrigade, setSelectedBrigade] = useState("");
   const brig = brigades.find(b => b.id === selectedBrigade);
   const bats = battalions.filter(b => b.brigade_id === selectedBrigade);
   const totalCadets = bats.reduce((s, b) => s + (b.cadet_count || 0), 0);
@@ -142,7 +140,7 @@ function BrigadePage({ brigades, battalions }) {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <select onChange={e => setSelectedBrigade(e.target.value)} value={selectedBrigade || ""} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}
+        <select onChange={e => setSelectedBrigade(e.target.value)} value={selectedBrigade} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
           <option value="">Select a brigade...</option>
           {brigades.map(b => <option key={b.id} value={b.id}>{b.name} — {b.region}</option>)}
         </select>
@@ -188,14 +186,14 @@ function BrigadePage({ brigades, battalions }) {
 }
 
 function BattalionPage({ brigades, battalions }) {
-  const [selectedBat, setSelectedBat] = useState(null);
+  const [selectedBat, setSelectedBat] = useState("");
   const bat = battalions.find(b => b.id === selectedBat);
   const brig = bat ? brigades.find(b => b.id === bat.brigade_id) : null;
 
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <select onChange={e => setSelectedBat(e.target.value)} value={selectedBat || ""} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827>
+        <select onChange={e => setSelectedBat(e.target.value)} value={selectedBat} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827", width: 320 }}>
           <option value="">Select a battalion...</option>
           {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
         </select>
@@ -245,22 +243,22 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
         <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
           <div style={{ fontWeight: 500, marginBottom: 16 }}>Add new unit</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {[["unit_number", "Unit number (e.g. 1-105)"], ["school_name", "School name"], ["school_address", "School address"], ["cadet_count", "Number of cadets"], ["commandant_name", "Commandant name & rank"], ["commandant_email", "Commandant email"], ["phone", "Phone number"]].map(([field, label]) => (
+            {[["unit_number", "Unit number (e.g. 1-105)"], ["school_name", "School name"], ["school_address", "School address"], ["cadet_count", "Number of cadets"], ["commandant_name", "Commandant name and rank"], ["commandant_email", "Commandant email"], ["phone", "Phone number"]].map(([field, label]) => (
               <div key={field}>
                 <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{label}</div>
-                <input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13 }} />
+                <input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827" }} />
               </div>
             ))}
             <div>
               <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade</div>
-              <select value={form.brigade_id} onChange={e => setForm(f => ({ ...f, brigade_id: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff" }}>
+              <select value={form.brigade_id} onChange={e => setForm(f => ({ ...f, brigade_id: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
                 <option value="">Select brigade...</option>
                 {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-            <button onClick={() => setShowForm(false)} style={{ padding: "7px 16px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            <button onClick={() => setShowForm(false)} style={{ padding: "7px 16px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827" }}>Cancel</button>
             <button onClick={saveUnit} disabled={saving} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer" }}>
               {saving ? "Saving..." : "Save unit"}
             </button>
@@ -329,7 +327,7 @@ function CatalogPage({ categories, fetchAll }) {
                     </span>
                   </td>
                   <td style={{ padding: "8px 16px" }}>
-                    <button onClick={() => toggleStock(item)} disabled={updating === item.id} style={{ padding: "4px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer" }}>
+                    <button onClick={() => toggleStock(item)} disabled={updating === item.id} style={{ padding: "4px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#111827" }}>
                       {updating === item.id ? "Saving..." : item.in_stock ? "Mark out of stock" : "Mark in stock"}
                     </button>
                   </td>
