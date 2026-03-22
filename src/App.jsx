@@ -168,17 +168,3 @@ function UnitsPage() {
   return <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 14 }}>Unit management — coming next session</div>;
 }
 ```
-
-Hit **Ctrl+S** to save and close Notepad. Then run these commands:
-
-```
-git add .
-```
-```
-git commit -m "add real dashboard"
-```
-```
-git push
-```
-
-Tell me what you see!
