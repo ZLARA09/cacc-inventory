@@ -25,8 +25,15 @@ export default function App() {
   const [stateInventory, setStateInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [requestForm, setRequestForm] = useState({ first_name: "", last_name: "", rank: "", phone: "", school_email: "", cacc_email: "", brigade_id: "", battalion_id: "" });
+  const [requestBrigades, setRequestBrigades] = useState([]);
+  const [requestBattalions, setRequestBattalions] = useState([]);
+  const [requestSubmitted, setRequestSubmitted] = useState(false);
+  const [requestSaving, setRequestSaving] = useState(false);
 
   useEffect(() => {
+    fetchPublicData();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) handleSession(session);
@@ -40,42 +47,33 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  async function fetchPublicData() {
+    const [brigRes, batRes] = await Promise.all([
+      supabase.from("brigades").select("*").order("brigade_number"),
+      supabase.from("battalions").select("*").order("unit_number"),
+    ]);
+    if (!brigRes.error) setRequestBrigades(brigRes.data);
+    if (!batRes.error) setRequestBattalions(batRes.data);
+  }
+
   async function handleSession(session) {
     const email = session.user.email;
     const name = session.user.user_metadata?.full_name || session.user.user_metadata?.name || email.split("@")[0];
     const { data: existing } = await supabase.from("user_roles").select("*").eq("email", email).single();
     if (existing) {
-      if (!existing.user_id) {
-        await supabase.from("user_roles").update({ user_id: session.user.id }).eq("email", email);
-      }
+      if (!existing.user_id) await supabase.from("user_roles").update({ user_id: session.user.id }).eq("email", email);
       setUserRole(existing);
       setAuthLoading(false);
       if (existing.role !== "pending") fetchAll();
     } else if (email.endsWith("@cacadets.org")) {
       const newUser = { user_id: session.user.id, email, full_name: name, role: "pending" };
       await supabase.from("user_roles").insert([newUser]);
-      await sendNewUserAlert(email, name);
       setUserRole({ ...newUser, role: "pending" });
       setAuthLoading(false);
     } else {
       setUserRole(null);
       setAuthLoading(false);
     }
-  }
-
-  async function sendNewUserAlert(email, name) {
-    try {
-      await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 100,
-          messages: [{ role: "user", content: `Send email alert: New CACC Inventory user registered. Name: ${name}, Email: ${email}` }]
-        })
-      });
-    } catch (e) {}
-    console.log(`New user registered: ${name} (${email})`);
   }
 
   async function fetchAll() {
@@ -102,6 +100,21 @@ export default function App() {
     setLoading(false);
   }
 
+  async function submitAccountRequest() {
+    if (!requestForm.first_name || !requestForm.last_name || !requestForm.school_email) {
+      alert("Please fill in at least your first name, last name, and school email.");
+      return;
+    }
+    setRequestSaving(true);
+    await supabase.from("account_requests").insert([{
+      ...requestForm,
+      brigade_id: requestForm.brigade_id || null,
+      battalion_id: requestForm.battalion_id || null,
+    }]);
+    setRequestSaving(false);
+    setRequestSubmitted(true);
+  }
+
   async function signInWithMicrosoft() {
     await supabase.auth.signInWithOAuth({
       provider: "azure",
@@ -126,20 +139,88 @@ export default function App() {
 
   if (!session) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f5f5f4", fontFamily: "sans-serif" }}>
-        <div style={{ background: "#fff", borderRadius: 16, padding: 40, maxWidth: 400, width: "100%", margin: "0 16px", border: "0.5px solid #e5e7eb", textAlign: "center" }}>
-          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
-          <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 32 }}>California Cadet Corps — Supply Management</div>
-          <button onClick={signInWithMicrosoft} style={{ width: "100%", padding: "14px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 15, cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, fontWeight: 500 }}>
-            <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-              <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-              <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-              <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-            </svg>
-            Sign in with Microsoft
-          </button>
-          <div style={{ marginTop: 20, fontSize: 12, color: "#9ca3af" }}>Use your cacadets.org Microsoft account</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f5f5f4", fontFamily: "sans-serif", padding: 16 }}>
+        <div style={{ maxWidth: 420, width: "100%" }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: 32, border: "0.5px solid #e5e7eb", textAlign: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
+            <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>California Cadet Corps — Supply Management</div>
+            <button onClick={signInWithMicrosoft} style={{ width: "100%", padding: "14px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 15, cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, fontWeight: 500, marginBottom: 12 }}>
+              <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+              </svg>
+              Sign in with Microsoft
+            </button>
+            <div style={{ borderTop: "0.5px solid #f3f4f6", paddingTop: 12 }}>
+              <button onClick={() => setShowRequestForm(s => !s)} style={{ width: "100%", padding: "12px 20px", borderRadius: 10, border: "0.5px solid #185FA5", background: "#E6F1FB", fontSize: 14, cursor: "pointer", color: "#185FA5", fontWeight: 500 }}>
+                {showRequestForm ? "Hide request form" : "Request commandant account via school email"}
+              </button>
+            </div>
+          </div>
+
+          {showRequestForm && !requestSubmitted && (
+            <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "0.5px solid #e5e7eb" }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 4 }}>Request an account</div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Fill out your information and State HQ will approve your access.</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>First name *</div>
+                    <input value={requestForm.first_name} onChange={e => setRequestForm(f => ({ ...f, first_name: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Last name *</div>
+                    <input value={requestForm.last_name} onChange={e => setRequestForm(f => ({ ...f, last_name: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Rank</div>
+                    <input value={requestForm.rank} onChange={e => setRequestForm(f => ({ ...f, rank: e.target.value }))} placeholder="e.g. MAJ, CPT" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Phone number</div>
+                    <input value={requestForm.phone} onChange={e => setRequestForm(f => ({ ...f, phone: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>School email *</div>
+                  <input value={requestForm.school_email} onChange={e => setRequestForm(f => ({ ...f, school_email: e.target.value }))} placeholder="you@school.edu" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>CACC email (if you have one)</div>
+                  <input value={requestForm.cacc_email} onChange={e => setRequestForm(f => ({ ...f, cacc_email: e.target.value }))} placeholder="you@cacadets.org" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade</div>
+                  <select value={requestForm.brigade_id} onChange={e => setRequestForm(f => ({ ...f, brigade_id: e.target.value, battalion_id: "" }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827" }}>
+                    <option value="">Select your brigade...</option>
+                    {requestBrigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion / School</div>
+                  <select value={requestForm.battalion_id} onChange={e => setRequestForm(f => ({ ...f, battalion_id: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827" }}>
+                    <option value="">Select your battalion...</option>
+                    {(requestForm.brigade_id ? requestBattalions.filter(b => b.brigade_id === requestForm.brigade_id) : requestBattalions).map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+                  </select>
+                </div>
+                <button onClick={submitAccountRequest} disabled={requestSaving} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 500, marginTop: 4 }}>
+                  {requestSaving ? "Submitting..." : "Submit account request"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showRequestForm && requestSubmitted && (
+            <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "0.5px solid #e5e7eb", textAlign: "center" }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "#111827", marginBottom: 8 }}>Request submitted!</div>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>State HQ has been notified. You will receive access once your account is approved.</div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -152,8 +233,7 @@ export default function App() {
           <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
           <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>Your email is not authorized for this system.</div>
           <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#FEF2F2", borderRadius: 8 }}>
-            Signed in as: <strong>{session.user.email}</strong><br/>
-            Only @cacadets.org accounts are permitted.
+            Signed in as: <strong>{session.user.email}</strong><br/>Only @cacadets.org accounts are permitted.
           </div>
           <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Sign out</button>
         </div>
@@ -202,12 +282,8 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div className="desktop-tabs" style={{ fontSize: 12, color: "#6b7280" }}>
-            {userRole.full_name} · {userRole.role.replace(/_/g, " ")}
-          </div>
-          <button onClick={signOut} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#111827" }}>
-            Sign out
-          </button>
+          <div className="desktop-tabs" style={{ fontSize: 12, color: "#6b7280" }}>{userRole.full_name} · {userRole.role.replace(/_/g, " ")}</div>
+          <button onClick={signOut} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#111827" }}>Sign out</button>
           <button onClick={() => setMenuOpen(m => !m)} className="mobile-menu-btn" style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827", flexShrink: 0 }}>
             {menuOpen ? "✕" : "☰"}
           </button>
@@ -225,9 +301,7 @@ export default function App() {
 
       {menuOpen && (
         <div style={{ background: "#fff", borderBottom: "0.5px solid #e5e7eb", padding: "8px 0" }}>
-          <div style={{ padding: "10px 20px", fontSize: 12, color: "#6b7280", borderBottom: "0.5px solid #f3f4f6" }}>
-            {userRole.full_name} · {userRole.role.replace(/_/g, " ")}
-          </div>
+          <div style={{ padding: "10px 20px", fontSize: 12, color: "#6b7280", borderBottom: "0.5px solid #f3f4f6" }}>{userRole.full_name} · {userRole.role.replace(/_/g, " ")}</div>
           {tabs.map(t => (
             <div key={t.id} onClick={() => { setPage(t.id); setMenuOpen(false); }} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", background: page === t.id ? "#E6F1FB" : "#fff", color: page === t.id ? "#185FA5" : "#111827", fontWeight: page === t.id ? 500 : 400, borderLeft: page === t.id ? "3px solid #185FA5" : "3px solid transparent" }}>
               {t.label}
@@ -257,23 +331,47 @@ export default function App() {
 
 function UserManagement({ brigades, battalions }) {
   const [users, setUsers] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  async function fetchUsers() {
+  async function fetchData() {
     setLoading(true);
-    const { data } = await supabase.from("user_roles").select("*").order("created_at", { ascending: false });
-    setUsers(data || []);
+    const [usersRes, reqRes] = await Promise.all([
+      supabase.from("user_roles").select("*").order("created_at", { ascending: false }),
+      supabase.from("account_requests").select("*, brigades(name), battalions(unit_number, school_name)").eq("status", "pending").order("created_at", { ascending: false }),
+    ]);
+    setUsers(usersRes.data || []);
+    setRequests(reqRes.data || []);
     setLoading(false);
   }
 
   async function updateUser(userId, updates) {
     setSaving(s => ({ ...s, [userId]: true }));
     await supabase.from("user_roles").update(updates).eq("id", userId);
-    await fetchUsers();
+    await fetchData();
     setSaving(s => ({ ...s, [userId]: false }));
+  }
+
+  async function approveRequest(req) {
+    setSaving(s => ({ ...s, [req.id]: true }));
+    await supabase.from("user_roles").insert([{
+      email: req.school_email,
+      full_name: `${req.rank ? req.rank + " " : ""}${req.first_name} ${req.last_name}`,
+      role: "battalion_staff",
+      brigade_id: req.brigade_id || null,
+      battalion_id: req.battalion_id || null,
+    }]);
+    await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
+    await fetchData();
+    setSaving(s => ({ ...s, [req.id]: false }));
+  }
+
+  async function denyRequest(reqId) {
+    await supabase.from("account_requests").update({ status: "denied" }).eq("id", reqId);
+    await fetchData();
   }
 
   const roleOptions = ["pending", "battalion_staff", "brigade_staff", "admin", "state_admin"];
@@ -283,22 +381,50 @@ function UserManagement({ brigades, battalions }) {
   return (
     <div>
       <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: "#111827" }}>User management</div>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Assign roles and access levels to staff who have signed in.</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Manage access for all CACC Inventory users.</div>
+
+      {requests.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#0C447C", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ background: "#E6F1FB", color: "#0C447C", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{requests.length}</span>
+            Account requests — school email
+          </div>
+          {requests.map(req => (
+            <div key={req.id} style={{ background: "#E6F1FB", border: "0.5px solid #93c5fd", borderRadius: 10, padding: 14, marginBottom: 10 }}>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{req.rank} {req.first_name} {req.last_name}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>School email: {req.school_email}</div>
+                {req.cacc_email && <div style={{ fontSize: 12, color: "#6b7280" }}>CACC email: {req.cacc_email}</div>}
+                {req.phone && <div style={{ fontSize: 12, color: "#6b7280" }}>Phone: {req.phone}</div>}
+                <div style={{ fontSize: 12, color: "#6b7280" }}>Brigade: {req.brigades?.name || "Not specified"}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>Battalion: {req.battalions ? `${req.battalions.unit_number} — ${req.battalions.school_name}` : "Not specified"}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>Requested: {new Date(req.created_at).toLocaleDateString()}</div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => approveRequest(req)} disabled={saving[req.id]} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>
+                  {saving[req.id] ? "..." : "Approve"}
+                </button>
+                <button onClick={() => denyRequest(req.id)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", fontSize: 13, cursor: "pointer" }}>
+                  Deny
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {pendingUsers.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#991b1b", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{pendingUsers.length} pending</span>
-            Awaiting approval
+            <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{pendingUsers.length}</span>
+            Pending — cacadets.org accounts
           </div>
           {pendingUsers.map(user => (
             <div key={user.id} style={{ background: "#FEF2F2", border: "0.5px solid #fca5a5", borderRadius: 10, padding: 14, marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>{user.email}</div>
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Signed up: {new Date(user.created_at).toLocaleDateString()}</div>
-                </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>{user.email}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Signed up: {new Date(user.created_at).toLocaleDateString()}</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
                 <div>
@@ -308,7 +434,7 @@ function UserManagement({ brigades, battalions }) {
                   </select>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade (if applicable)</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade</div>
                   <select defaultValue="" id={`brigade-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
                     <option value="">None</option>
                     {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -316,7 +442,7 @@ function UserManagement({ brigades, battalions }) {
                 </div>
               </div>
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion (if applicable)</div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion</div>
                 <select defaultValue="" id={`battalion-${user.id}`} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
                   <option value="">None</option>
                   {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
@@ -401,17 +527,9 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const allBatIds = battalions.map(b => b.id);
   const allItems = Object.values(categories).flat();
 
-  function getStateInv(itemId) {
-    return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 };
-  }
-  function getWarehouse(itemId) {
-    if (warehouseEdits[itemId] !== undefined) return warehouseEdits[itemId];
-    return getStateInv(itemId).qty_warehouse || 0;
-  }
-  function getThreshold(itemId) {
-    if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId];
-    return getStateInv(itemId).shortage_threshold ?? 0;
-  }
+  function getStateInv(itemId) { return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 }; }
+  function getWarehouse(itemId) { if (warehouseEdits[itemId] !== undefined) return warehouseEdits[itemId]; return getStateInv(itemId).qty_warehouse || 0; }
+  function getThreshold(itemId) { if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId]; return getStateInv(itemId).shortage_threshold ?? 0; }
 
   async function saveStateInventory() {
     setSaving(true);
@@ -481,17 +599,11 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                             <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name}</div>
                             <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
                           </div>
-                          <div style={{ textAlign: "right" }}>
-                            <input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <input type="number" min="0" value={warehouse} onChange={e => setWarehouseEdits(w => ({ ...w, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
-                          </div>
+                          <div style={{ textAlign: "right" }}><input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
+                          <div style={{ textAlign: "right" }}><input type="number" min="0" value={warehouse} onChange={e => setWarehouseEdits(w => ({ ...w, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
                           <div style={{ fontSize: 13, color: batInv.qty_unserviceable > 0 ? "#991b1b" : "#111827", textAlign: "right" }}>{batInv.qty_unserviceable}</div>
                           <div style={{ fontSize: 13, color: "#111827", textAlign: "right" }}>{batInv.qty_issued}</div>
-                          <div style={{ textAlign: "right" }}>
-                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280" }}>{inStock}</span>
-                          </div>
+                          <div style={{ textAlign: "right" }}><span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280" }}>{inStock}</span></div>
                         </div>
                       );
                     })}
@@ -620,16 +732,8 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
   const brig = bat ? brigades.find(b => b.id === bat.brigade_id) : null;
 
   function getInvRow(itemId) { return inventory.find(i => i.battalion_id === selectedBat && i.catalog_item_id === itemId); }
-  function getEdit(itemId, field) {
-    const inv = getInvRow(itemId);
-    if (edits[itemId]?.[field] !== undefined) return edits[itemId][field];
-    return inv ? (inv[field] || 0) : 0;
-  }
-  function getThreshold(itemId) {
-    if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId];
-    const inv = getInvRow(itemId);
-    return inv ? (inv.shortage_threshold || 0) : 0;
-  }
+  function getEdit(itemId, field) { const inv = getInvRow(itemId); if (edits[itemId]?.[field] !== undefined) return edits[itemId][field]; return inv ? (inv[field] || 0) : 0; }
+  function getThreshold(itemId) { if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId]; const inv = getInvRow(itemId); return inv ? (inv.shortage_threshold || 0) : 0; }
   function setEdit(itemId, field, value) { setEdits(e => ({ ...e, [itemId]: { ...e[itemId], [field]: parseInt(value) || 0 } })); }
 
   async function saveAll() {
