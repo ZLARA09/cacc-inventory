@@ -14,6 +14,9 @@ const SECTIONS = [
 ];
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [page, setPage] = useState("state");
   const [categories, setCategories] = useState({});
   const [brigades, setBrigades] = useState([]);
@@ -23,7 +26,26 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchUserRole(session.user.email);
+      else setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) fetchUserRole(session.user.email);
+      else { setUserRole(null); setAuthLoading(false); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function fetchUserRole(email) {
+    const { data } = await supabase.from("user_roles").select("*").eq("email", email).single();
+    setUserRole(data || null);
+    setAuthLoading(false);
+    if (data) fetchAll();
+  }
 
   async function fetchAll() {
     setLoading(true);
@@ -49,6 +71,72 @@ export default function App() {
     setLoading(false);
   }
 
+  async function signInWithMicrosoft() {
+    await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        scopes: "email",
+        redirectTo: window.location.origin,
+      },
+    });
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+  }
+
+  if (authLoading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f5f5f4", fontFamily: "sans-serif" }}>
+        <div style={{ textAlign: "center", color: "#6b7280" }}>
+          <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
+          <div style={{ fontSize: 14 }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f5f5f4", fontFamily: "sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 40, maxWidth: 400, width: "100%", margin: "0 16px", border: "0.5px solid #e5e7eb", textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
+          <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 32 }}>California Cadet Corps — Supply Management</div>
+          <button onClick={signInWithMicrosoft} style={{ width: "100%", padding: "14px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 15, cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, fontWeight: 500 }}>
+            <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+              <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+              <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+              <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+            </svg>
+            Sign in with Microsoft
+          </button>
+          <div style={{ marginTop: 20, fontSize: 12, color: "#9ca3af" }}>
+            Use your cacadets.org or authorized Microsoft account
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userRole) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f5f5f4", fontFamily: "sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 40, maxWidth: 400, width: "100%", margin: "0 16px", border: "0.5px solid #e5e7eb", textAlign: "center" }}>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
+          <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>Your account has not been authorized yet.</div>
+          <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#FEF9C3", borderRadius: 8 }}>
+            Signed in as: <strong>{session.user.email}</strong><br/>
+            Please contact State HQ to request access.
+          </div>
+          <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const tabs = [
     { id: "state", label: "State dashboard" },
     { id: "brigade", label: "Brigade inventory" },
@@ -72,9 +160,17 @@ export default function App() {
             ))}
           </div>
         </div>
-        <button onClick={() => setMenuOpen(m => !m)} className="mobile-menu-btn" style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827", flexShrink: 0 }}>
-          {menuOpen ? "✕" : "☰"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="desktop-tabs" style={{ fontSize: 12, color: "#6b7280" }}>
+            {userRole.full_name} · {userRole.role.replace("_", " ")}
+          </div>
+          <button onClick={signOut} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#111827" }}>
+            Sign out
+          </button>
+          <button onClick={() => setMenuOpen(m => !m)} className="mobile-menu-btn" style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827", flexShrink: 0 }}>
+            {menuOpen ? "✕" : "☰"}
+          </button>
+        </div>
       </div>
 
       <style>{`
@@ -88,11 +184,17 @@ export default function App() {
 
       {menuOpen && (
         <div style={{ background: "#fff", borderBottom: "0.5px solid #e5e7eb", padding: "8px 0" }}>
+          <div style={{ padding: "10px 20px", fontSize: 12, color: "#6b7280", borderBottom: "0.5px solid #f3f4f6" }}>
+            {userRole.full_name} · {userRole.role.replace("_", " ")}
+          </div>
           {tabs.map(t => (
             <div key={t.id} onClick={() => { setPage(t.id); setMenuOpen(false); }} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", background: page === t.id ? "#E6F1FB" : "#fff", color: page === t.id ? "#185FA5" : "#111827", fontWeight: page === t.id ? 500 : 400, borderLeft: page === t.id ? "3px solid #185FA5" : "3px solid transparent" }}>
               {t.label}
             </div>
           ))}
+          <div onClick={signOut} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", color: "#991b1b" }}>
+            Sign out
+          </div>
         </div>
       )}
 
@@ -507,10 +609,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
                       <div>
                         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
                           <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>Item / Size</div>
-                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>
-                            Alert
-                            <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 400 }}>(25% rec.)</div>
-                          </div>
+                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Alert<div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 400 }}>(25% rec.)</div></div>
                           <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Serviceable</div>
                           <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Unserviceable</div>
                           <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Issued</div>
