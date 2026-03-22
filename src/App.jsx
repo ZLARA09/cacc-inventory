@@ -85,7 +85,8 @@ export default function App() {
     } else if (email.endsWith("@cacadets.org") || email.endsWith("@cacc.internal")) {
       const newUser = { user_id: session.user.id, email, full_name: name, role: "pending" };
       await supabase.from("user_roles").insert([newUser]);
-      await sendEmail("zak.lara@cacadets.org", "New CACC Inventory user — action required", `<p>New user signed in: <strong>${name}</strong> (${email})</p><p>Log in to approve their access at <a href="https://cacc-inventory.vercel.app">cacc-inventory.vercel.app</a></p>`);
+      await sendEmail("zak.lara@cacadets.org", "New CACC Inventory user — action required",
+        `<p>New user signed in: <strong>${name}</strong> (${email})</p><p>Log in to approve at <a href="https://cacc-inventory.vercel.app">cacc-inventory.vercel.app</a></p>`);
       setUserRole({ ...newUser, role: "pending" });
       setAuthLoading(false);
     } else {
@@ -131,13 +132,12 @@ export default function App() {
       battalion_id: requestForm.battalion_id || null,
       request_type: requestType,
     }]);
-    await sendEmail(
-      "zak.lara@cacadets.org",
+    await sendEmail("zak.lara@cacadets.org",
       `New ${requestType} account request — ${requestForm.first_name} ${requestForm.last_name}`,
       `<p><strong>${requestForm.rank || ""} ${requestForm.first_name} ${requestForm.last_name}</strong> has requested a ${requestType} account.</p>
       <p>Email: ${requestForm.school_email}</p>
       ${requestType === "cadet" ? `<p>Commandant email: ${requestForm.commandant_email}</p>` : ""}
-      <p>Review and approve at <a href="https://cacc-inventory.vercel.app">cacc-inventory.vercel.app</a> → User management</p>`
+      <p>Review at <a href="https://cacc-inventory.vercel.app">cacc-inventory.vercel.app</a> → User management</p>`
     );
     setRequestSaving(false);
     setRequestSubmitted(true);
@@ -152,7 +152,10 @@ export default function App() {
 
   async function signInWithPassword() {
     setStaffLoginError("");
-    const { error } = await supabase.auth.signInWithPassword({ email: staffEmail, password: staffPassword });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: staffEmail.includes("@") ? staffEmail : `${staffEmail}@cacc.internal`,
+      password: staffPassword
+    });
     if (error) setStaffLoginError("Invalid username or password. Please try again.");
   }
 
@@ -191,16 +194,16 @@ export default function App() {
               Staff / approved account login
             </button>
             {showStaffLogin && (
-              <div style={{ textAlign: "left", marginBottom: 10 }}>
+              <div style={{ textAlign: "left", marginBottom: 10, padding: "16px", background: "#f9fafb", borderRadius: 10, border: "0.5px solid #e5e7eb" }}>
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Username</div>
-                  <input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="Username or email" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  <input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="e.g. supply_admin_2026" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
                 </div>
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password</div>
                   <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && signInWithPassword()} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
                 </div>
-                {staffLoginError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 8 }}>{staffLoginError}</div>}
+                {staffLoginError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 8, padding: "8px 10px", background: "#FEF2F2", borderRadius: 6 }}>{staffLoginError}</div>}
                 <button onClick={signInWithPassword} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>Sign in</button>
               </div>
             )}
@@ -215,12 +218,8 @@ export default function App() {
             <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "0.5px solid #e5e7eb" }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Request an account</div>
               <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-                <button onClick={() => setRequestType("commandant")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "commandant" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "commandant" ? "#E6F1FB" : "#fff", color: requestType === "commandant" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "commandant" ? 600 : 400 }}>
-                  Commandant
-                </button>
-                <button onClick={() => setRequestType("cadet")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "cadet" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "cadet" ? "#E6F1FB" : "#fff", color: requestType === "cadet" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "cadet" ? 600 : 400 }}>
-                  Supply cadet
-                </button>
+                <button onClick={() => setRequestType("commandant")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "commandant" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "commandant" ? "#E6F1FB" : "#fff", color: requestType === "commandant" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "commandant" ? 600 : 400 }}>Commandant</button>
+                <button onClick={() => setRequestType("cadet")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "cadet" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "cadet" ? "#E6F1FB" : "#fff", color: requestType === "cadet" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "cadet" ? 600 : 400 }}>Supply cadet</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -245,7 +244,7 @@ export default function App() {
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{requestType === "cadet" ? "School email *" : "Email *"}</div>
-                  <input value={requestForm.school_email} onChange={e => setRequestForm(f => ({ ...f, school_email: e.target.value }))} placeholder={requestType === "cadet" ? "your.name@school.edu" : "you@school.edu"} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
+                  <input value={requestForm.school_email} onChange={e => setRequestForm(f => ({ ...f, school_email: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
                 </div>
                 {requestType === "commandant" && (
                   <div>
@@ -385,7 +384,7 @@ export default function App() {
             {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} />}
             {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchAll={fetchAll} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchAll={fetchAll} />}
-            {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} fetchAll={fetchAll} />}
+            {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} />}
           </>
         )}
       </div>
@@ -393,7 +392,7 @@ export default function App() {
   );
 }
 
-function UserManagement({ brigades, battalions, fetchAll }) {
+function UserManagement({ brigades, battalions }) {
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -425,13 +424,12 @@ function UserManagement({ brigades, battalions, fetchAll }) {
     await supabase.from("user_roles").insert([{
       email: req.school_email,
       full_name: fullName,
-      role: req.request_type === "cadet" ? "battalion_staff" : "battalion_staff",
+      role: "battalion_staff",
       brigade_id: req.brigade_id || null,
       battalion_id: req.battalion_id || null,
       status: "active",
     }]);
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
-    await sendEmail("zak.lara@cacadets.org", `Account approved — ${fullName}`, `<p>Account for <strong>${fullName}</strong> (${req.school_email}) has been approved.</p>`);
     await fetchData();
     setSaving(s => ({ ...s, [req.id]: false }));
   }
@@ -505,13 +503,13 @@ function UserManagement({ brigades, battalions, fetchAll }) {
                 <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: group.bg, color: group.color }}>{groupUsers.length}</span>
               </div>
               <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 120px", padding: "8px 14px", background: "#f9fafb", borderBottom: "0.5px solid #e5e7eb", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 130px", padding: "8px 14px", background: "#f9fafb", borderBottom: "0.5px solid #e5e7eb", gap: 8 }}>
                   {["Name", "Role", "Brigade", "Battalion", "Status"].map(h => (
                     <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>{h}</div>
                   ))}
                 </div>
                 {groupUsers.map(user => (
-                  <div key={user.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 120px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8 }}>
+                  <div key={user.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 130px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
                       <div style={{ fontSize: 11, color: "#9ca3af" }}>{user.email}</div>
@@ -527,9 +525,9 @@ function UserManagement({ brigades, battalions, fetchAll }) {
                       <option value="">None</option>
                       {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
                     </select>
-                    <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 3 }}>
                       {statusOptions.map(s => (
-                        <button key={s.value} onClick={() => updateUser(user.id, { status: s.value })} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: user.status === s.value || (!user.status && s.value === "active") ? `1.5px solid ${s.color}` : "0.5px solid #e5e7eb", background: user.status === s.value || (!user.status && s.value === "active") ? s.bg : "#fff", color: user.status === s.value || (!user.status && s.value === "active") ? s.color : "#9ca3af", fontSize: 9, cursor: "pointer", fontWeight: 500 }}>
+                        <button key={s.value} onClick={() => updateUser(user.id, { status: s.value })} style={{ flex: 1, padding: "5px 2px", borderRadius: 6, border: (user.status === s.value || (!user.status && s.value === "active")) ? `1.5px solid ${s.color}` : "0.5px solid #e5e7eb", background: (user.status === s.value || (!user.status && s.value === "active")) ? s.bg : "#fff", color: (user.status === s.value || (!user.status && s.value === "active")) ? s.color : "#9ca3af", fontSize: 9, cursor: "pointer", fontWeight: 500 }}>
                           {s.label}
                         </button>
                       ))}
@@ -559,22 +557,29 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const [warehouseEdits, setWarehouseEdits] = useState({});
   const [thresholdEdits, setThresholdEdits] = useState({});
   const [saving, setSaving] = useState(false);
-  const [togglingStock, setTogglingStock] = useState(null);
+  const [localCategories, setLocalCategories] = useState(categories);
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const activeBats = battalions.filter(b => b.status === "active");
   const totalCadets = battalions.reduce((s, b) => s + (b.cadet_count || 0), 0);
   const allBatIds = battalions.map(b => b.id);
-  const allItems = Object.values(categories).flat();
+  const allItems = Object.values(localCategories).flat();
+
+  useEffect(() => { setLocalCategories(categories); }, [categories]);
 
   function getStateInv(itemId) { return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 }; }
   function getWarehouse(itemId) { if (warehouseEdits[itemId] !== undefined) return warehouseEdits[itemId]; return getStateInv(itemId).qty_warehouse || 0; }
   function getThreshold(itemId) { if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId]; return getStateInv(itemId).shortage_threshold ?? 0; }
 
   async function toggleStock(item) {
-    setTogglingStock(item.id);
-    await supabase.from("catalog_items").update({ in_stock: !item.in_stock }).eq("id", item.id);
-    await fetchAll();
-    setTogglingStock(null);
+    const newInStock = !item.in_stock;
+    setLocalCategories(prev => {
+      const updated = {};
+      for (const [cat, items] of Object.entries(prev)) {
+        updated[cat] = items.map(i => i.id === item.id ? { ...i, in_stock: newInStock } : i);
+      }
+      return updated;
+    });
+    await supabase.from("catalog_items").update({ in_stock: newInStock }).eq("id", item.id);
   }
 
   async function saveStateInventory() {
@@ -612,7 +617,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
         <div key={section.header} style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.header}</div>
           {section.groups.map(cat => {
-            const items = categories[cat] || [];
+            const items = localCategories[cat] || [];
             if (items.length === 0) return null;
             return (
               <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
@@ -625,7 +630,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                 </div>
                 {open[cat] && (
                   <div>
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 60px 80px 90px 100px 80px 80px", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 70px 80px 90px 100px 80px 80px", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>Item / Size</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Stock</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Alert</div>
@@ -641,15 +646,14 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                       const inStock = Math.max(0, warehouse - (batInv.qty_issued || 0));
                       const isAlert = threshold > 0 && inStock < threshold;
                       return (
-                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 60px 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
+                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 70px 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
                           <div>
                             <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name}</div>
                             <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
                           </div>
-                          <div style={{ textAlign: "center" }}>
-                            <button onClick={() => toggleStock(item)} disabled={togglingStock === item.id} style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: item.in_stock ? "#dcfce7" : "#fee2e2", color: item.in_stock ? "#166534" : "#991b1b", fontSize: 10, cursor: "pointer", fontWeight: 500, width: "100%" }}>
-                              {togglingStock === item.id ? "..." : item.in_stock ? "In" : "Out"}
-                            </button>
+                          <div style={{ display: "flex", gap: 3 }}>
+                            <button onClick={() => { if (!item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: item.in_stock ? "1.5px solid #166534" : "0.5px solid #e5e7eb", background: item.in_stock ? "#dcfce7" : "#fff", color: item.in_stock ? "#166534" : "#9ca3af", fontSize: 9, cursor: item.in_stock ? "default" : "pointer", fontWeight: 500 }}>In</button>
+                            <button onClick={() => { if (item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: !item.in_stock ? "1.5px solid #991b1b" : "0.5px solid #e5e7eb", background: !item.in_stock ? "#fee2e2" : "#fff", color: !item.in_stock ? "#991b1b" : "#9ca3af", fontSize: 9, cursor: !item.in_stock ? "default" : "pointer", fontWeight: 500 }}>Out</button>
                           </div>
                           <div style={{ textAlign: "right" }}>
                             <input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
@@ -878,7 +882,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
                     </div>
                     {open[cat] && (
                       <div>
-                        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 6 }}>
                           <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>Item / Size</div>
                           <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Alert<div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 400 }}>(25% rec.)</div></div>
                           <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Serviceable</div>
@@ -901,10 +905,11 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
                                 </div>
                                 <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280", flexShrink: 0 }}>{inStock} in stock</span>
                               </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
                                 {[["Alert", "shortage_threshold", threshold, true], ["Serviceable", "qty_serviceable", svc, false], ["Unserviceable", "qty_unserviceable", unsvc, false], ["Issued", "qty_issued", issued, false]].map(([label, field, val, isThresh]) => (
                                   <div key={field} style={{ textAlign: "center" }}>
-                                    <input type="number" min="0" value={val} onChange={e => isThresh ? setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 })) : setEdit(item.id, field, e.target.value)} style={{ width: "100%", padding: "8px 4px", borderRadius: 6, border: isAlert && isThresh ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 13, color: "#111827", textAlign: "center", background: "#ffffff" }} />
+                                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 3 }}>{label}</div>
+                                    <input type="number" min="0" value={val} onChange={e => isThresh ? setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 })) : setEdit(item.id, field, e.target.value)} style={{ width: "100%", padding: "6px 2px", borderRadius: 6, border: isAlert && isThresh ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#ffffff" }} />
                                   </div>
                                 ))}
                               </div>
