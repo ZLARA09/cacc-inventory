@@ -59,14 +59,32 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "sans-serif", minHeight: "100vh", background: "#f5f5f4" }}>
-      <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontWeight: 600, fontSize: 16, padding: "14px 0" }}>
+      <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontWeight: 600, fontSize: 16, padding: "14px 0", marginRight: 16, flexShrink: 0 }}>
           CACC <span style={{ color: "#185FA5" }}>Inventory</span>
         </div>
-        <button onClick={() => setMenuOpen(m => !m)} style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827" }}>
-          {menuOpen ? "✕ Close" : "☰ Menu"}
+        <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center" }} className="desktop-tabs">
+            {tabs.map(t => (
+              <div key={t.id} onClick={() => setPage(t.id)} style={{ padding: "14px 12px", fontSize: 13, cursor: "pointer", borderBottom: page === t.id ? "2px solid #185FA5" : "2px solid transparent", color: page === t.id ? "#185FA5" : "#6b7280", fontWeight: page === t.id ? 500 : 400, whiteSpace: "nowrap" }}>
+                {t.label}
+              </div>
+            ))}
+          </div>
+        </div>
+        <button onClick={() => setMenuOpen(m => !m)} className="mobile-menu-btn" style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827", flexShrink: 0 }}>
+          {menuOpen ? "✕" : "☰"}
         </button>
       </div>
+
+      <style>{`
+        .desktop-tabs { display: flex; }
+        .mobile-menu-btn { display: none; }
+        @media (max-width: 768px) {
+          .desktop-tabs { display: none !important; }
+          .mobile-menu-btn { display: block !important; }
+        }
+      `}</style>
 
       {menuOpen && (
         <div style={{ background: "#fff", borderBottom: "0.5px solid #e5e7eb", padding: "8px 0" }}>
@@ -116,7 +134,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const allItems = Object.values(categories).flat();
 
   function getStateInv(itemId) {
-    return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 100 };
+    return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 };
   }
 
   function getWarehouse(itemId) {
@@ -126,7 +144,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
 
   function getThreshold(itemId) {
     if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId];
-    return getStateInv(itemId).shortage_threshold ?? 100;
+    return getStateInv(itemId).shortage_threshold ?? 0;
   }
 
   async function saveStateInventory() {
@@ -152,13 +170,11 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   }
 
   const hasEdits = Object.keys({ ...warehouseEdits, ...thresholdEdits }).length > 0;
-  const totalItems = allItems.length;
-  const outOfStock = allItems.filter(i => !i.in_stock).length;
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        {[["Active battalions", activeBats.length], ["Total cadets", totalCadets.toLocaleString()], ["Catalog items", totalItems], ["Out of stock", outOfStock]].map(([label, value]) => (
+        {[["Active battalions", activeBats.length], ["Total cadets", totalCadets.toLocaleString()], ["Catalog items", allItems.length], ["Out of stock", allItems.filter(i => !i.in_stock).length]].map(([label, value]) => (
           <div key={label} style={{ background: "#f3f4f6", borderRadius: 8, padding: 14 }}>
             <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>
             <div style={{ fontSize: 22, fontWeight: 500 }}>{value}</div>
@@ -174,9 +190,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
 
       {SECTIONS.map(section => (
         <div key={section.header} style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            {section.header}
-          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.header}</div>
           {section.groups.map(cat => {
             const items = categories[cat] || [];
             if (items.length === 0) return null;
@@ -191,9 +205,9 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                 </div>
                 {open[cat] && (
                   <div>
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr", padding: "6px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 90px 100px 80px 80px", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>Item / Size</div>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Shortage alert</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Alert</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Warehouse</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Unserviceable</div>
                       <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "right" }}>Issued</div>
@@ -206,16 +220,16 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                       const inStock = Math.max(0, warehouse - (batInv.qty_issued || 0));
                       const isAlert = threshold > 0 && inStock < threshold;
                       return (
-                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", background: isAlert ? "#FEF2F2" : "#fff" }}>
+                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
                           <div>
                             <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name}</div>
                             <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#ffffff" }} />
+                            <input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <input type="number" min="0" value={warehouse} onChange={e => setWarehouseEdits(w => ({ ...w, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#ffffff" }} />
+                            <input type="number" min="0" value={warehouse} onChange={e => setWarehouseEdits(w => ({ ...w, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
                           </div>
                           <div style={{ fontSize: 13, color: batInv.qty_unserviceable > 0 ? "#991b1b" : "#111827", textAlign: "right" }}>{batInv.qty_unserviceable}</div>
                           <div style={{ fontSize: 13, color: "#111827", textAlign: "right" }}>{batInv.qty_issued}</div>
@@ -278,7 +292,10 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
               return (
                 <div key={bat.id} style={{ padding: "12px 14px", borderBottom: "0.5px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", background: hasAlert ? "#FEF2F2" : "#fff" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{bat.unit_number} {hasAlert && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "2px 6px", borderRadius: 999, marginLeft: 6 }}>shortage alert</span>}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", display: "flex", alignItems: "center", gap: 8 }}>
+                      {bat.unit_number}
+                      {hasAlert && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "2px 6px", borderRadius: 999 }}>shortage alert</span>}
+                    </div>
                     <div style={{ fontSize: 11, color: "#6b7280" }}>{bat.school_name}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -403,26 +420,13 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
   function exportSupplyPDF() {
     const date = new Date();
     const dateStr = `${date.getDate().toString().padStart(2,"0")}/${(date.getMonth()+1).toString().padStart(2,"0")}/${date.getFullYear()}`;
-    let html = `<html><head><style>
-      body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}
-      h1{font-size:18px;margin-bottom:4px}
-      h2{font-size:14px;font-weight:normal;color:#555;margin-bottom:20px}
-      h3{font-size:13px;text-transform:uppercase;text-decoration:underline;margin:20px 0 8px}
-      table{width:100%;border-collapse:collapse;margin-bottom:12px}
-      th{text-align:left;padding:6px 10px;background:#f3f4f6;font-size:11px;border-bottom:1px solid #e5e7eb}
-      td{padding:6px 10px;border-bottom:0.5px solid #f3f4f6}
-      .highlighted{background:#FEF9C3;font-weight:bold}
-      .footer{margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#555}
-    </style></head><body>
-    <h1>CACC Supply Requisition — ${bat.unit_number} ${bat.school_name}</h1>
-    <h2>Date: ${dateStr} | Brigade: ${brig?.name} | Commandant: ${bat.commandant_name || "N/A"}</h2>`;
+    let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;font-weight:normal;color:#555;margin-bottom:20px}h3{font-size:13px;text-transform:uppercase;text-decoration:underline;margin:20px 0 8px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{text-align:left;padding:6px 10px;background:#f3f4f6;font-size:11px;border-bottom:1px solid #e5e7eb}td{padding:6px 10px;border-bottom:0.5px solid #f3f4f6}.highlighted{background:#FEF9C3;font-weight:bold}.footer{margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#555}</style></head><body><h1>CACC Supply Requisition — ${bat.unit_number} ${bat.school_name}</h1><h2>Date: ${dateStr} | Brigade: ${brig?.name} | Commandant: ${bat.commandant_name || "N/A"}</h2>`;
     SECTIONS.forEach(section => {
       html += `<h3>${section.header}</h3><table><thead><tr><th>Item</th><th>Size</th><th>Qty requested</th></tr></thead><tbody>`;
       section.groups.forEach(g => {
         (categories[g] || []).forEach(item => {
           const qty = supplyQtys[item.id] || 0;
-          const cls = qty > 0 ? ' class="highlighted"' : '';
-          html += `<tr${cls}><td>${item.item_name}</td><td>${item.size_label}</td><td>${qty > 0 ? qty : ""}</td></tr>`;
+          html += `<tr${qty > 0 ? ' class="highlighted"' : ''}><td>${item.item_name}</td><td>${item.size_label}</td><td>${qty > 0 ? qty : ""}</td></tr>`;
         });
       });
       html += `</tbody></table>`;
@@ -499,33 +503,46 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
                         <span style={{ fontSize: 11, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
                       </div>
                     </div>
-                    {open[cat] && items.map(item => {
-                      const svc = getEdit(item.id, "qty_serviceable");
-                      const unsvc = getEdit(item.id, "qty_unserviceable");
-                      const issued = getEdit(item.id, "qty_issued");
-                      const threshold = getThreshold(item.id);
-                      const inStock = Math.max(0, svc - issued);
-                      const isAlert = threshold > 0 && inStock < threshold;
-                      return (
-                        <div key={item.id} style={{ padding: "12px 14px", borderTop: "0.5px solid #f3f4f6", background: isAlert ? "#FEF2F2" : "#fff" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: isAlert ? 600 : 500, color: "#111827" }}>{item.item_name}</div>
-                              <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
-                            </div>
-                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280", flexShrink: 0 }}>{inStock} in stock</span>
+                    {open[cat] && (
+                      <div>
+                        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", padding: "8px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", gap: 8 }}>
+                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>Item / Size</div>
+                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>
+                            Alert
+                            <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 400 }}>(25% rec.)</div>
                           </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-                            {[["Shortage alert", "shortage_threshold", threshold, true], ["Serviceable", "qty_serviceable", svc, false], ["Unserviceable", "qty_unserviceable", unsvc, false], ["Issued", "qty_issued", issued, false]].map(([label, field, val, isThresh]) => (
-                              <div key={field}>
-                                <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4 }}>{label}{isThresh && <div style={{ fontSize: 9, color: "#9ca3af" }}>(25% of strength rec.)</div>}</div>
-                                <input type="number" min="0" value={val} onChange={e => isThresh ? setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 })) : setEdit(item.id, field, e.target.value)} style={{ width: "100%", padding: "8px 6px", borderRadius: 6, border: isAlert && isThresh ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 13, color: "#111827", textAlign: "center", background: "#ffffff" }} />
-                              </div>
-                            ))}
-                          </div>
+                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Serviceable</div>
+                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Unserviceable</div>
+                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>Issued</div>
                         </div>
-                      );
-                    })}
+                        {items.map(item => {
+                          const svc = getEdit(item.id, "qty_serviceable");
+                          const unsvc = getEdit(item.id, "qty_unserviceable");
+                          const issued = getEdit(item.id, "qty_issued");
+                          const threshold = getThreshold(item.id);
+                          const inStock = Math.max(0, svc - issued);
+                          const isAlert = threshold > 0 && inStock < threshold;
+                          return (
+                            <div key={item.id} style={{ padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", background: isAlert ? "#FEF2F2" : "#fff" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                <div>
+                                  <div style={{ fontSize: 13, fontWeight: isAlert ? 600 : 500, color: "#111827" }}>{item.item_name}</div>
+                                  <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
+                                </div>
+                                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280", flexShrink: 0 }}>{inStock} in stock</span>
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                                {[["Alert", "shortage_threshold", threshold, true], ["Serviceable", "qty_serviceable", svc, false], ["Unserviceable", "qty_unserviceable", unsvc, false], ["Issued", "qty_issued", issued, false]].map(([label, field, val, isThresh]) => (
+                                  <div key={field} style={{ textAlign: "center" }}>
+                                    <input type="number" min="0" value={val} onChange={e => isThresh ? setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 })) : setEdit(item.id, field, e.target.value)} style={{ width: "100%", padding: "8px 4px", borderRadius: 6, border: isAlert && isThresh ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 13, color: "#111827", textAlign: "center", background: "#ffffff" }} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
