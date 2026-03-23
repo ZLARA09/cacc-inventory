@@ -164,7 +164,7 @@ export default function App() {
           <button onClick={() => setShowStaffLogin(s => !s)} style={{ width: "100%", padding: "12px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#f9fafb", fontSize: 14, cursor: "pointer", color: "#6b7280", marginBottom: 10 }}>Staff / approved account login</button>
           {showStaffLogin && (
             <div style={{ textAlign: "left", marginBottom: 10, padding: 16, background: "#f9fafb", borderRadius: 10, border: "0.5px solid #e5e7eb" }}>
-              <div style={{ marginBottom: 8 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Username</div><input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="e.g. supply_admin_2026" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} /></div>
+              <div style={{ marginBottom: 8 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Username or email</div><input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="e.g. supply_admin_2026 or email@domain.com" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} /></div>
               <div style={{ marginBottom: 10 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password</div><input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && signInWithPassword()} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} /></div>
               {staffLoginError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 8, padding: "8px 10px", background: "#FEF2F2", borderRadius: 6 }}>{staffLoginError}</div>}
               <button onClick={signInWithPassword} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>Sign in</button>
@@ -298,6 +298,15 @@ export default function App() {
   );
 }
 
+function sortBattalions(battalions) {
+  return [...battalions].sort((a, b) => {
+    const aParts = (a.unit_number || "").split("-").map(n => parseInt(n) || 0);
+    const bParts = (b.unit_number || "").split("-").map(n => parseInt(n) || 0);
+    if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0];
+    return (aParts[1] || 0) - (bParts[1] || 0);
+  });
+}
+
 function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -307,6 +316,7 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [createSuccess, setCreateSuccess] = useState("");
+  const [expandedRoles, setExpandedRoles] = useState({ state_admin: true, admin: true, brigade_staff: true, battalion_staff: true, pending: true });
 
   useEffect(() => { fetchData(); }, []);
 
@@ -340,14 +350,9 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
       password: createForm.password,
       options: { data: { full_name: `${createForm.first_name} ${createForm.last_name}` } }
     });
-    if (signUpError) {
-      setCreateError("Error: " + signUpError.message);
-      setCreating(false);
-      return;
-    }
-    const userId = signUpData?.user?.id;
-    await supabase.from("user_roles").insert([{
-      user_id: userId || null,
+    if (signUpError) { setCreateError("Error: " + signUpError.message); setCreating(false); return; }
+    const { error: roleError } = await supabase.from("user_roles").insert([{
+      user_id: signUpData?.user?.id || null,
       email: createForm.email,
       full_name: `${createForm.first_name} ${createForm.last_name}`,
       role: createForm.role,
@@ -355,7 +360,8 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
       battalion_id: createForm.battalion_id || null,
       status: "active",
     }]);
-    setCreateSuccess(`Account created for ${createForm.first_name} ${createForm.last_name}. They can log in using the Staff login button with their email and password.`);
+    if (roleError) { setCreateError("Auth created but role failed: " + roleError.message); setCreating(false); return; }
+    setCreateSuccess(`✓ Account created for ${createForm.first_name} ${createForm.last_name}. They can sign in using the Staff login with email: ${createForm.email}`);
     setCreateForm({ first_name: "", last_name: "", email: "", password: "", role: "battalion_staff", brigade_id: "", battalion_id: "" });
     setCreating(false);
     await fetchData();
@@ -391,13 +397,18 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
     { value: "inactive", label: "Inactive", color: "#991b1b", bg: "#fee2e2" },
   ];
 
+  const allExpanded = Object.values(expandedRoles).every(v => v);
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#111827" }}>User management</div>
-        <button onClick={() => { setShowCreateForm(s => !s); setCreateError(""); setCreateSuccess(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>+ Create user</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setExpandedRoles(Object.fromEntries(roleGroups.map(g => [g.role, !allExpanded])))} style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#6b7280" }}>{allExpanded ? "Collapse all" : "Expand all"}</button>
+          <button onClick={() => { setShowCreateForm(s => !s); setCreateError(""); setCreateSuccess(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>+ Create user</button>
+        </div>
       </div>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Changes save automatically when you update a dropdown or status.</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Changes to role, brigade, battalion, and status save automatically.</div>
 
       {showCreateForm && (
         <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 20 }}>
@@ -405,8 +416,8 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>First name *</div><input value={createForm.first_name} onChange={e => setCreateForm(f => ({ ...f, first_name: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
             <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Last name *</div><input value={createForm.last_name} onChange={e => setCreateForm(f => ({ ...f, last_name: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
-            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Email *</div><input value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} placeholder="their@email.com" style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
-            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password *</div><input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} placeholder="Set their password" style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Email *</div><input value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password *</div><input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
             <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Role *</div>
               <select value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
                 {["battalion_staff", "brigade_staff", "admin", "state_admin"].map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
@@ -421,7 +432,7 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
             <div style={{ gridColumn: "1 / -1" }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion</div>
               <select value={createForm.battalion_id} onChange={e => setCreateForm(f => ({ ...f, battalion_id: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
                 <option value="">None</option>
-                {(createForm.brigade_id ? battalions.filter(b => b.brigade_id === createForm.brigade_id) : battalions).map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+                {sortBattalions(createForm.brigade_id ? battalions.filter(b => b.brigade_id === createForm.brigade_id) : battalions).map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
               </select>
             </div>
           </div>
@@ -466,41 +477,45 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
       {loading ? <div style={{ padding: 20, textAlign: "center", color: "#6b7280" }}>Loading...</div> : roleGroups.map(group => {
         const groupUsers = users.filter(u => u.role === group.role);
         if (groupUsers.length === 0) return null;
+        const isExpanded = expandedRoles[group.role];
         return (
-          <div key={group.role} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <div key={group.role} style={{ marginBottom: 16 }}>
+            <div onClick={() => setExpandedRoles(e => ({ ...e, [group.role]: !e[group.role] }))} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: isExpanded ? 10 : 0, cursor: "pointer", padding: "8px 0" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: group.color, textTransform: "uppercase", textDecoration: "underline", letterSpacing: "0.04em" }}>{group.label}</span>
               <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: group.bg, color: group.color }}>{groupUsers.length}</span>
+              <span style={{ fontSize: 11, color: "#6b7280", marginLeft: "auto" }}>{isExpanded ? "▲" : "▼"}</span>
             </div>
-            <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 130px", padding: "8px 14px", background: "#f9fafb", borderBottom: "0.5px solid #e5e7eb", gap: 8 }}>
-                {["Name", "Role", "Brigade", "Battalion", "Status"].map(h => <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>{h}</div>)}
-              </div>
-              {groupUsers.map(user => (
-                <div key={user.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 130px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
-                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{user.email}</div>
-                  </div>
-                  <select value={user.role} onChange={e => updateUser(user.id, { role: e.target.value })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
-                    {["pending", "battalion_staff", "brigade_staff", "admin", "state_admin"].map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
-                  </select>
-                  <select value={user.brigade_id || ""} onChange={e => updateUser(user.id, { brigade_id: e.target.value || null })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
-                    <option value="">None</option>
-                    {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                  <select value={user.battalion_id || ""} onChange={e => updateUser(user.id, { battalion_id: e.target.value || null })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
-                    <option value="">None</option>
-                    {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
-                  </select>
-                  <div style={{ display: "flex", gap: 3 }}>
-                    {statusOptions.map(s => (
-                      <button key={s.value} onClick={() => updateUser(user.id, { status: s.value })} style={{ flex: 1, padding: "5px 2px", borderRadius: 6, border: (user.status === s.value || (!user.status && s.value === "active")) ? `1.5px solid ${s.color}` : "0.5px solid #e5e7eb", background: (user.status === s.value || (!user.status && s.value === "active")) ? s.bg : "#fff", color: (user.status === s.value || (!user.status && s.value === "active")) ? s.color : "#9ca3af", fontSize: 9, cursor: "pointer", fontWeight: 500 }}>{s.label}</button>
-                    ))}
-                  </div>
+            {isExpanded && (
+              <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 130px", padding: "8px 14px", background: "#f9fafb", borderBottom: "0.5px solid #e5e7eb", gap: 8 }}>
+                  {["Name", "Role", "Brigade", "Battalion", "Status"].map(h => <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>{h}</div>)}
                 </div>
-              ))}
-            </div>
+                {groupUsers.map(user => (
+                  <div key={user.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 130px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{user.full_name}</div>
+                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{user.email}</div>
+                    </div>
+                    <select value={user.role} onChange={e => updateUser(user.id, { role: e.target.value })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
+                      {["pending", "battalion_staff", "brigade_staff", "admin", "state_admin"].map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+                    </select>
+                    <select value={user.brigade_id || ""} onChange={e => updateUser(user.id, { brigade_id: e.target.value || null })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
+                      <option value="">None</option>
+                      {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                    <select value={user.battalion_id || ""} onChange={e => updateUser(user.id, { battalion_id: e.target.value || null })} style={{ width: "100%", padding: "5px 6px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 11, background: "#fff", color: "#111827" }}>
+                      <option value="">None</option>
+                      {sortBattalions(battalions).map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+                    </select>
+                    <div style={{ display: "flex", gap: 3 }}>
+                      {statusOptions.map(s => (
+                        <button key={s.value} onClick={() => updateUser(user.id, { status: s.value })} style={{ flex: 1, padding: "5px 2px", borderRadius: 6, border: (user.status === s.value || (!user.status && s.value === "active")) ? `1.5px solid ${s.color}` : "0.5px solid #e5e7eb", background: (user.status === s.value || (!user.status && s.value === "active")) ? s.bg : "#fff", color: (user.status === s.value || (!user.status && s.value === "active")) ? s.color : "#9ca3af", fontSize: 9, cursor: "pointer", fontWeight: 500 }}>{s.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -564,12 +579,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     for (const item of items) {
       if (!sectionEdits[cat]?.[item.id]) continue;
       const existing = localStateInv.find(s => s.catalog_item_id === item.id);
-      const data = {
-        catalog_item_id: item.id,
-        qty_warehouse: getEdit(cat, item.id, "qty_warehouse"),
-        shortage_threshold: getEdit(cat, item.id, "shortage_threshold"),
-        updated_at: new Date().toISOString(),
-      };
+      const data = { catalog_item_id: item.id, qty_warehouse: getEdit(cat, item.id, "qty_warehouse"), shortage_threshold: getEdit(cat, item.id, "shortage_threshold"), updated_at: new Date().toISOString() };
       if (existing) await supabase.from("state_inventory").update(data).eq("id", existing.id);
       else await supabase.from("state_inventory").insert([data]);
     }
@@ -687,7 +697,7 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
           </div>
           <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
             <div style={{ padding: "12px 14px", borderBottom: "0.5px solid #e5e7eb", background: "#f9fafb", fontWeight: 500, fontSize: 13 }}>Battalions in {brig.name}</div>
-            {bats.map(bat => {
+            {sortBattalions(bats).map(bat => {
               const hasAlert = getBatAlert(bat);
               return (
                 <div key={bat.id} style={{ padding: "12px 14px", borderBottom: "0.5px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", background: hasAlert ? "#FEF2F2" : "#fff" }}>
@@ -766,13 +776,6 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
 
   useEffect(() => { setLocalInventory(inventory); }, [inventory]);
 
-  const sortedBattalions = [...battalions].sort((a, b) => {
-    const aParts = a.unit_number?.split("-").map(Number) || [0, 0];
-    const bParts = b.unit_number?.split("-").map(Number) || [0, 0];
-    if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0];
-    return aParts[1] - bParts[1];
-  });
-
   const bat = battalions.find(b => b.id === selectedBat);
   const brig = bat ? brigades.find(b => b.id === bat.brigade_id) : null;
 
@@ -796,15 +799,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
     for (const item of items) {
       if (!sectionEdits[cat]?.[item.id]) continue;
       const existing = getInvRow(item.id);
-      const data = {
-        battalion_id: selectedBat,
-        catalog_item_id: item.id,
-        qty_serviceable: getEdit(cat, item.id, "qty_serviceable"),
-        qty_unserviceable: getEdit(cat, item.id, "qty_unserviceable"),
-        qty_issued: getEdit(cat, item.id, "qty_issued"),
-        shortage_threshold: getEdit(cat, item.id, "shortage_threshold"),
-        updated_at: new Date().toISOString(),
-      };
+      const data = { battalion_id: selectedBat, catalog_item_id: item.id, qty_serviceable: getEdit(cat, item.id, "qty_serviceable"), qty_unserviceable: getEdit(cat, item.id, "qty_unserviceable"), qty_issued: getEdit(cat, item.id, "qty_issued"), shortage_threshold: getEdit(cat, item.id, "shortage_threshold"), updated_at: new Date().toISOString() };
       if (existing) {
         await supabase.from("inventory").update(data).eq("id", existing.id);
         newInvRows.push({ ...existing, ...data });
@@ -831,10 +826,10 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
   function exportSupplyPDF() {
     const date = new Date();
     const dateStr = `${date.getDate().toString().padStart(2,"0")}/${(date.getMonth()+1).toString().padStart(2,"0")}/${date.getFullYear()}`;
-    let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;font-weight:normal;color:#555;margin-bottom:20px}h3{font-size:13px;text-transform:uppercase;text-decoration:underline;margin:20px 0 8px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{text-align:left;padding:6px 10px;background:#f3f4f6;font-size:11px;border-bottom:1px solid #e5e7eb}td{padding:6px 10px;border-bottom:0.5px solid #f3f4f6}.highlighted{background:#FEF9C3;font-weight:bold}.footer{margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#555}</style></head><body><h1>CACC Supply Requisition — ${bat.unit_number} ${bat.school_name}</h1><h2>Date: ${dateStr} | Brigade: ${brig?.name} | Commandant: ${bat.commandant_name || "N/A"}</h2>`;
+    let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;font-weight:normal;color:#555;margin-bottom:20px}h3{font-size:13px;text-transform:uppercase;text-decoration:underline;margin:20px 0 8px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{text-align:left;padding:6px 10px;background:#f3f4f6;font-size:11px;border-bottom:1px solid #e5e7eb}td{padding:6px 10px;border-bottom:0.5px solid #f3f4f6}.highlighted{background:#FEF9C3;font-weight:bold}.oos{color:#991b1b;font-size:10px}.footer{margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#555}</style></head><body><h1>CACC Supply Requisition — ${bat.unit_number} ${bat.school_name}</h1><h2>Date: ${dateStr} | Brigade: ${brig?.name} | Commandant: ${bat.commandant_name || "N/A"}</h2>`;
     SECTIONS.forEach(section => {
-      html += `<h3>${section.header}</h3><table><thead><tr><th>Item</th><th>Size</th><th>Qty requested</th></tr></thead><tbody>`;
-      section.groups.forEach(g => { (categories[g] || []).forEach(item => { const qty = supplyQtys[item.id] || 0; html += `<tr${qty > 0 ? ' class="highlighted"' : ''}><td>${item.item_name}</td><td>${item.size_label}</td><td>${qty > 0 ? qty : ""}</td></tr>`; }); });
+      html += `<h3>${section.header}</h3><table><thead><tr><th>Item</th><th>Size</th><th>Availability</th><th>Qty requested</th></tr></thead><tbody>`;
+      section.groups.forEach(g => { (categories[g] || []).forEach(item => { const qty = supplyQtys[item.id] || 0; const oos = !item.in_stock ? '<span class="oos">⚠ Out of stock</span>' : ''; html += `<tr${qty > 0 ? ' class="highlighted"' : ''}><td>${item.item_name}</td><td>${item.size_label}</td><td>${oos || '✓'}</td><td>${qty > 0 ? qty : ""}</td></tr>`; }); });
       html += `</tbody></table>`;
     });
     html += `<div class="footer"><strong>Unit:</strong> ${bat.unit_number} | <strong>School:</strong> ${bat.school_name} | <strong>Email:</strong> ${bat.commandant_email || "N/A"} | <strong>Phone:</strong> ${bat.phone || "N/A"}</div></body></html>`;
@@ -844,8 +839,8 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
   function exportSupplyExcel() {
     const date = new Date();
     const dateStr = `${date.getDate().toString().padStart(2,"0")}-${(date.getMonth()+1).toString().padStart(2,"0")}-${date.getFullYear()}`;
-    let csv = `CACC Supply Requisition - ${bat.unit_number} - ${bat.school_name}\nDate: ${dateStr}\nBrigade: ${brig?.name}\nCommandant: ${bat.commandant_name || ""}\nEmail: ${bat.commandant_email || ""}\nPhone: ${bat.phone || ""}\n\nSection,Item,Size,Qty requested\n`;
-    SECTIONS.forEach(section => { section.groups.forEach(g => { (categories[g] || []).forEach(item => { const qty = supplyQtys[item.id] || 0; if (qty > 0) csv += `${section.header},"${item.item_name}","${item.size_label}",${qty}\n`; }); }); });
+    let csv = `CACC Supply Requisition - ${bat.unit_number} - ${bat.school_name}\nDate: ${dateStr}\nBrigade: ${brig?.name}\nCommandant: ${bat.commandant_name || ""}\nEmail: ${bat.commandant_email || ""}\nPhone: ${bat.phone || ""}\n\nSection,Item,Size,Availability,Qty requested\n`;
+    SECTIONS.forEach(section => { section.groups.forEach(g => { (categories[g] || []).forEach(item => { const qty = supplyQtys[item.id] || 0; if (qty > 0) csv += `${section.header},"${item.item_name}","${item.size_label}","${item.in_stock ? "In stock" : "OUT OF STOCK"}",${qty}\n`; }); }); });
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `Supply-Request-${bat.unit_number}-${dateStr}.csv`; a.click();
@@ -855,7 +850,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
     <div>
       <select onChange={e => { setSelectedBat(e.target.value); setOpen({}); setSectionEdits({}); setShowSupply(false); setSupplyQtys({}); }} value={selectedBat} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827", marginBottom: 12 }}>
         <option value="">Select a battalion...</option>
-        {sortedBattalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+        {sortBattalions(battalions).map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
       </select>
       {bat && (
         <>
@@ -936,12 +931,12 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
           {showSupply && (
             <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 24 }}>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: "#111827" }}>Supply requisition form</div>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Enter quantities for items you are requesting. Requested items will be highlighted.</div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Enter quantities for items you are requesting. <span style={{ color: "#991b1b", fontWeight: 500 }}>⚠ Out of stock items are flagged</span> — you may still request them.</div>
               {SECTIONS.map(section => (
                 <div key={section.header} style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase" }}>{section.header}</div>
                   {section.groups.map(cat => {
-                    const items = (categories[cat] || []).filter(i => i.in_stock);
+                    const items = categories[cat] || [];
                     if (items.length === 0) return null;
                     return (
                       <div key={cat} style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
@@ -952,10 +947,13 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
                         {supplyOpen[cat] && items.map(item => {
                           const qty = supplyQtys[item.id] || 0;
                           return (
-                            <div key={item.id} style={{ padding: "10px 14px", borderTop: "0.5px solid #f3f4f6", background: qty > 0 ? "#FEF9C3" : "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div key={item.id} style={{ padding: "10px 14px", borderTop: "0.5px solid #f3f4f6", background: qty > 0 ? "#FEF9C3" : !item.in_stock ? "#FEF2F2" : "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                               <div>
                                 <div style={{ fontSize: 13, fontWeight: qty > 0 ? 600 : 400, color: "#111827" }}>{item.item_name}</div>
-                                <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</span>
+                                  {!item.in_stock && <span style={{ fontSize: 10, color: "#991b1b", background: "#fee2e2", padding: "1px 6px", borderRadius: 999, fontWeight: 500 }}>⚠ Out of stock</span>}
+                                </div>
                               </div>
                               <input type="number" min="0" value={qty || ""} placeholder="0" onChange={e => setSupplyQtys(q => ({ ...q, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "8px 6px", borderRadius: 6, border: qty > 0 ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", fontSize: 14, color: "#111827", textAlign: "center", background: "#ffffff", flexShrink: 0 }} />
                             </div>
@@ -991,35 +989,65 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
 
 function UnitsPage({ brigades, battalions, fetchAll }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ unit_number: "", school_name: "", school_address: "", cadet_count: "", commandant_name: "", commandant_email: "", phone: "", brigade_id: "" });
   const [saving, setSaving] = useState(false);
+  const [expandedBrigades, setExpandedBrigades] = useState({});
+  const allExpanded = brigades.every(b => expandedBrigades[b.id] !== false);
 
-  const sortedBattalions = [...battalions].sort((a, b) => {
-    const aParts = a.unit_number?.split("-").map(Number) || [0, 0];
-    const bParts = b.unit_number?.split("-").map(Number) || [0, 0];
-    if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0];
-    return aParts[1] - bParts[1];
-  });
+  const groupedByBrigade = brigades.map(brig => ({
+    ...brig,
+    bats: sortBattalions(battalions.filter(b => b.brigade_id === brig.id)),
+  }));
+  const unassigned = sortBattalions(battalions.filter(b => !b.brigade_id));
 
   async function saveUnit() {
     setSaving(true);
-    const { error } = await supabase.from("battalions").insert([{ ...form, cadet_count: parseInt(form.cadet_count) || 0, status: "active" }]);
-    if (error) { alert("Error saving unit: " + error.message); setSaving(false); return; }
+    if (editingId) {
+      const { error } = await supabase.from("battalions").update({ ...form, cadet_count: parseInt(form.cadet_count) || 0 }).eq("id", editingId);
+      if (error) { alert("Error: " + error.message); setSaving(false); return; }
+    } else {
+      const { error } = await supabase.from("battalions").insert([{ ...form, cadet_count: parseInt(form.cadet_count) || 0, status: "active" }]);
+      if (error) { alert("Error: " + error.message); setSaving(false); return; }
+    }
     await fetchAll();
     setShowForm(false);
+    setEditingId(null);
     setForm({ unit_number: "", school_name: "", school_address: "", cadet_count: "", commandant_name: "", commandant_email: "", phone: "", brigade_id: "" });
     setSaving(false);
   }
 
+  async function updateStatus(batId, status) {
+    await supabase.from("battalions").update({ status }).eq("id", batId);
+    await fetchAll();
+  }
+
+  function startEdit(bat) {
+    setEditingId(bat.id);
+    setForm({ unit_number: bat.unit_number || "", school_name: bat.school_name || "", school_address: bat.school_address || "", cadet_count: bat.cadet_count || "", commandant_name: bat.commandant_name || "", commandant_email: bat.commandant_email || "", phone: bat.phone || "", brigade_id: bat.brigade_id || "" });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const statusOptions = [
+    { value: "active", label: "Active", color: "#166534", bg: "#dcfce7" },
+    { value: "inactive", label: "Inactive", color: "#991b1b", bg: "#fee2e2" },
+    { value: "pending", label: "Pending", color: "#92400e", bg: "#fef3c7" },
+  ];
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: "#6b7280" }}>{battalions.length} total units</div>
-        <button onClick={() => setShowForm(!showForm)} style={{ padding: "10px 16px", borderRadius: 8, border: "0.5px solid #185FA5", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer" }}>+ Add new unit</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ fontSize: 13, color: "#6b7280" }}>{battalions.length} total units</div>
+          <button onClick={() => setExpandedBrigades(Object.fromEntries(brigades.map(b => [b.id, !allExpanded])))} style={{ padding: "5px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#6b7280" }}>{allExpanded ? "Collapse all" : "Expand all"}</button>
+        </div>
+        <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ unit_number: "", school_name: "", school_address: "", cadet_count: "", commandant_name: "", commandant_email: "", phone: "", brigade_id: "" }); }} style={{ padding: "10px 16px", borderRadius: 8, border: "0.5px solid #185FA5", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer" }}>+ Add new unit</button>
       </div>
+
       {showForm && (
         <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontWeight: 500, marginBottom: 14, color: "#111827" }}>Add new unit</div>
+          <div style={{ fontWeight: 500, marginBottom: 14, color: "#111827" }}>{editingId ? "Edit unit" : "Add new unit"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[["unit_number", "Unit number (e.g. 1-105)"], ["school_name", "School name"], ["school_address", "School address"], ["cadet_count", "Number of cadets"], ["commandant_name", "Commandant name and rank"], ["commandant_email", "Commandant email"], ["phone", "Phone number"]].map(([field, label]) => (
               <div key={field}>
@@ -1036,29 +1064,65 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-            <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: "12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Cancel</button>
-            <button onClick={saveUnit} disabled={saving} style={{ flex: 1, padding: "12px", borderRadius: 6, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer" }}>{saving ? "Saving..." : "Save unit"}</button>
+            <button onClick={() => { setShowForm(false); setEditingId(null); }} style={{ flex: 1, padding: "12px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Cancel</button>
+            <button onClick={saveUnit} disabled={saving} style={{ flex: 1, padding: "12px", borderRadius: 6, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer" }}>{saving ? "Saving..." : editingId ? "Update unit" : "Save unit"}</button>
           </div>
         </div>
       )}
-      <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-        {sortedBattalions.map(bat => {
-          const brig = brigades.find(b => b.id === bat.brigade_id);
-          return (
-            <div key={bat.id} style={{ padding: "12px 14px", borderBottom: "0.5px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{bat.unit_number}</div>
-                <div style={{ fontSize: 11, color: "#6b7280" }}>{bat.school_name}</div>
-                <div style={{ fontSize: 11, color: "#6b7280" }}>{brig?.name}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 13, color: "#111827" }}>{bat.cadet_count} cadets</div>
-                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: bat.status === "active" ? "#dcfce7" : "#f3f4f6", color: bat.status === "active" ? "#166534" : "#6b7280" }}>{bat.status}</span>
+
+      {groupedByBrigade.map(brig => {
+        if (brig.bats.length === 0) return null;
+        const isExpanded = expandedBrigades[brig.id] !== false;
+        return (
+          <div key={brig.id} style={{ marginBottom: 12 }}>
+            <div onClick={() => setExpandedBrigades(e => ({ ...e, [brig.id]: !isExpanded }))} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#f9fafb", borderRadius: isExpanded ? "10px 10px 0 0" : 10, border: "0.5px solid #e5e7eb", cursor: "pointer" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>{brig.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 999 }}>{brig.bats.length} units</span>
+                <span style={{ fontSize: 11, color: "#6b7280" }}>{isExpanded ? "▲" : "▼"}</span>
               </div>
             </div>
-          );
-        })}
-      </div>
+            {isExpanded && (
+              <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
+                {brig.bats.map(bat => (
+                  <div key={bat.id} style={{ padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{bat.unit_number}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>{bat.school_name}</div>
+                      {bat.commandant_name && <div style={{ fontSize: 11, color: "#9ca3af" }}>{bat.commandant_name}</div>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", gap: 3 }}>
+                        {statusOptions.map(s => (
+                          <button key={s.value} onClick={() => updateStatus(bat.id, s.value)} style={{ padding: "3px 8px", borderRadius: 6, border: bat.status === s.value ? `1.5px solid ${s.color}` : "0.5px solid #e5e7eb", background: bat.status === s.value ? s.bg : "#fff", color: bat.status === s.value ? s.color : "#9ca3af", fontSize: 9, cursor: "pointer", fontWeight: 500 }}>{s.label}</button>
+                        ))}
+                      </div>
+                      <button onClick={() => startEdit(bat)} style={{ padding: "4px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#185FA5" }}>Edit</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {unassigned.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", padding: "10px 14px", background: "#f9fafb", borderRadius: 10, border: "0.5px solid #e5e7eb", marginBottom: 8 }}>Unassigned</div>
+          <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+            {unassigned.map(bat => (
+              <div key={bat.id} style={{ padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{bat.unit_number || "No unit number"}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280" }}>{bat.school_name}</div>
+                </div>
+                <button onClick={() => startEdit(bat)} style={{ padding: "4px 10px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#185FA5" }}>Edit</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
