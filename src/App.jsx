@@ -70,10 +70,7 @@ export default function App() {
       if (!existing.user_id) await supabase.from("user_roles").update({ user_id: session.user.id }).eq("email", email);
       setUserRole(existing);
       setAuthLoading(false);
-      if (existing.role !== "pending") {
-        fetchAll();
-        fetchPendingCount();
-      }
+      if (existing.role !== "pending") { fetchAll(); fetchPendingCount(); }
     } else if (email.endsWith("@cacadets.org") || email.endsWith("@cacc.internal")) {
       const newUser = { user_id: session.user.id, email, full_name: name, role: "pending" };
       await supabase.from("user_roles").insert([newUser]);
@@ -86,9 +83,9 @@ export default function App() {
   }
 
   async function fetchPendingCount() {
-    const { data } = await supabase.from("account_requests").select("id").eq("status", "pending");
-    const { data: pendingUsers } = await supabase.from("user_roles").select("id").eq("role", "pending");
-    setPendingCount((data?.length || 0) + (pendingUsers?.length || 0));
+    const { data: reqs } = await supabase.from("account_requests").select("id").eq("status", "pending");
+    const { data: pending } = await supabase.from("user_roles").select("id").eq("role", "pending");
+    setPendingCount((reqs?.length || 0) + (pending?.length || 0));
   }
 
   async function fetchAll() {
@@ -113,6 +110,15 @@ export default function App() {
     if (!invRes.error) setInventory(invRes.data);
     if (!stateInvRes.error) setStateInventory(stateInvRes.data);
     setLoading(false);
+  }
+
+  async function fetchInventoryOnly() {
+    const [invRes, stateInvRes] = await Promise.all([
+      supabase.from("inventory").select("*"),
+      supabase.from("state_inventory").select("*"),
+    ]);
+    if (!invRes.error) setInventory(invRes.data);
+    if (!stateInvRes.error) setStateInventory(stateInvRes.data);
   }
 
   async function submitAccountRequest() {
@@ -251,7 +257,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center" }} className="desktop-tabs">
             {tabs.map(t => (
-              <div key={t.id} onClick={() => setPage(t.id)} style={{ padding: "14px 12px", fontSize: 13, cursor: "pointer", borderBottom: page === t.id ? "2px solid #185FA5" : "2px solid transparent", color: page === t.id ? "#185FA5" : "#6b7280", fontWeight: page === t.id ? 500 : 400, whiteSpace: "nowrap", position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
+              <div key={t.id} onClick={() => setPage(t.id)} style={{ padding: "14px 12px", fontSize: 13, cursor: "pointer", borderBottom: page === t.id ? "2px solid #185FA5" : "2px solid transparent", color: page === t.id ? "#185FA5" : "#6b7280", fontWeight: page === t.id ? 500 : 400, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
                 {t.label}
                 {t.badge > 0 && <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>{t.badge}</span>}
               </div>
@@ -280,9 +286,9 @@ export default function App() {
       <div style={{ padding: 16 }}>
         {loading ? <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Loading...</div> : (
           <>
-            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchAll={fetchAll} />}
+            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchInventoryOnly={fetchInventoryOnly} />}
             {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} />}
-            {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchAll={fetchAll} />}
+            {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchInventoryOnly={fetchInventoryOnly} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchAll={fetchAll} />}
             {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} fetchAll={fetchAll} fetchPendingCount={fetchPendingCount} />}
           </>
@@ -300,6 +306,7 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
   const [createForm, setCreateForm] = useState({ first_name: "", last_name: "", email: "", password: "", role: "battalion_staff", brigade_id: "", battalion_id: "" });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [createSuccess, setCreateSuccess] = useState("");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -322,23 +329,25 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
 
   async function createUser() {
     setCreateError("");
+    setCreateSuccess("");
     if (!createForm.first_name || !createForm.last_name || !createForm.email || !createForm.password) {
       setCreateError("Please fill in all required fields.");
       return;
     }
     setCreating(true);
-    const { data, error } = await supabase.auth.admin.createUser({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: createForm.email,
       password: createForm.password,
-      email_confirm: true,
+      options: { data: { full_name: `${createForm.first_name} ${createForm.last_name}` } }
     });
-    if (error) {
-      setCreateError("Could not create auth user: " + error.message);
+    if (signUpError) {
+      setCreateError("Error: " + signUpError.message);
       setCreating(false);
       return;
     }
+    const userId = signUpData?.user?.id;
     await supabase.from("user_roles").insert([{
-      user_id: data.user.id,
+      user_id: userId || null,
       email: createForm.email,
       full_name: `${createForm.first_name} ${createForm.last_name}`,
       role: createForm.role,
@@ -346,8 +355,8 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
       battalion_id: createForm.battalion_id || null,
       status: "active",
     }]);
+    setCreateSuccess(`Account created for ${createForm.first_name} ${createForm.last_name}. They can log in using the Staff login button with their email and password.`);
     setCreateForm({ first_name: "", last_name: "", email: "", password: "", role: "battalion_staff", brigade_id: "", battalion_id: "" });
-    setShowCreateForm(false);
     setCreating(false);
     await fetchData();
     fetchPendingCount();
@@ -386,7 +395,7 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#111827" }}>User management</div>
-        <button onClick={() => setShowCreateForm(s => !s)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>+ Create user</button>
+        <button onClick={() => { setShowCreateForm(s => !s); setCreateError(""); setCreateSuccess(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>+ Create user</button>
       </div>
       <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Changes save automatically when you update a dropdown or status.</div>
 
@@ -417,8 +426,9 @@ function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
             </div>
           </div>
           {createError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 12, padding: "8px 12px", background: "#FEF2F2", borderRadius: 6 }}>{createError}</div>}
+          {createSuccess && <div style={{ fontSize: 12, color: "#166534", marginBottom: 12, padding: "8px 12px", background: "#dcfce7", borderRadius: 6 }}>{createSuccess}</div>}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button onClick={() => { setShowCreateForm(false); setCreateError(""); }} style={{ padding: "9px 16px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827" }}>Cancel</button>
+            <button onClick={() => { setShowCreateForm(false); setCreateError(""); setCreateSuccess(""); }} style={{ padding: "9px 16px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827" }}>Cancel</button>
             <button onClick={createUser} disabled={creating} style={{ padding: "9px 16px", borderRadius: 6, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>{creating ? "Creating..." : "Create user"}</button>
           </div>
         </div>
@@ -507,12 +517,13 @@ function sumInv(inventory, battalionIds, catalogItemId) {
   };
 }
 
-function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchAll }) {
+function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchInventoryOnly }) {
   const [open, setOpen] = useState({});
-  const [warehouseEdits, setWarehouseEdits] = useState({});
-  const [thresholdEdits, setThresholdEdits] = useState({});
-  const [saving, setSaving] = useState(false);
   const [localCats, setLocalCats] = useState(categories);
+  const [localStateInv, setLocalStateInv] = useState(stateInventory);
+  const [sectionEdits, setSectionEdits] = useState({});
+  const [savingSection, setSavingSection] = useState({});
+  const [savedSection, setSavedSection] = useState({});
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const activeBats = battalions.filter(b => b.status === "active");
   const totalCadets = battalions.reduce((s, b) => s + (b.cadet_count || 0), 0);
@@ -520,10 +531,23 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const allItems = Object.values(localCats).flat();
 
   useEffect(() => { setLocalCats(categories); }, [categories]);
+  useEffect(() => { setLocalStateInv(stateInventory); }, [stateInventory]);
 
-  function getStateInv(itemId) { return stateInventory.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 }; }
-  function getWarehouse(itemId) { if (warehouseEdits[itemId] !== undefined) return warehouseEdits[itemId]; return getStateInv(itemId).qty_warehouse || 0; }
-  function getThreshold(itemId) { if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId]; return getStateInv(itemId).shortage_threshold ?? 0; }
+  function getStateInv(itemId) { return localStateInv.find(s => s.catalog_item_id === itemId) || { qty_warehouse: 0, shortage_threshold: 0 }; }
+
+  function getEdit(cat, itemId, field) {
+    if (sectionEdits[cat]?.[itemId]?.[field] !== undefined) return sectionEdits[cat][itemId][field];
+    const si = getStateInv(itemId);
+    if (field === "qty_warehouse") return si.qty_warehouse || 0;
+    if (field === "shortage_threshold") return si.shortage_threshold || 0;
+    return 0;
+  }
+
+  function setEdit(cat, itemId, field, value) {
+    setSectionEdits(e => ({ ...e, [cat]: { ...e[cat], [itemId]: { ...e[cat]?.[itemId], [field]: parseInt(value) || 0 } } }));
+  }
+
+  function catHasEdits(cat) { return sectionEdits[cat] && Object.keys(sectionEdits[cat]).length > 0; }
 
   async function toggleStock(item) {
     const newVal = !item.in_stock;
@@ -535,13 +559,26 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     await supabase.from("catalog_items").update({ in_stock: newVal }).eq("id", item.id);
   }
 
-  async function saveWarehouse(itemId) {
-    const existing = stateInventory.find(s => s.catalog_item_id === itemId);
-    const data = { catalog_item_id: itemId, qty_warehouse: getWarehouse(itemId), shortage_threshold: getThreshold(itemId), updated_at: new Date().toISOString() };
-    if (existing) await supabase.from("state_inventory").update(data).eq("id", existing.id);
-    else await supabase.from("state_inventory").insert([data]);
-    setWarehouseEdits(w => { const n = { ...w }; delete n[itemId]; return n; });
-    setThresholdEdits(t => { const n = { ...t }; delete n[itemId]; return n; });
+  async function saveSection(cat, items) {
+    setSavingSection(s => ({ ...s, [cat]: true }));
+    for (const item of items) {
+      if (!sectionEdits[cat]?.[item.id]) continue;
+      const existing = localStateInv.find(s => s.catalog_item_id === item.id);
+      const data = {
+        catalog_item_id: item.id,
+        qty_warehouse: getEdit(cat, item.id, "qty_warehouse"),
+        shortage_threshold: getEdit(cat, item.id, "shortage_threshold"),
+        updated_at: new Date().toISOString(),
+      };
+      if (existing) await supabase.from("state_inventory").update(data).eq("id", existing.id);
+      else await supabase.from("state_inventory").insert([data]);
+    }
+    const { data: fresh } = await supabase.from("state_inventory").select("*");
+    if (fresh) setLocalStateInv(fresh);
+    setSectionEdits(e => { const n = { ...e }; delete n[cat]; return n; });
+    setSavingSection(s => ({ ...s, [cat]: false }));
+    setSavedSection(s => ({ ...s, [cat]: true }));
+    setTimeout(() => setSavedSection(s => ({ ...s, [cat]: false })), 3000);
   }
 
   return (
@@ -560,6 +597,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
           {section.groups.map(cat => {
             const items = localCats[cat] || [];
             if (items.length === 0) return null;
+            const hasEdits = catHasEdits(cat);
             return (
               <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
                 <div onClick={() => toggleCat(cat)} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
@@ -578,30 +616,35 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                     </div>
                     {items.map(item => {
                       const batInv = sumInv(inventory, allBatIds, item.id);
-                      const warehouse = getWarehouse(item.id);
-                      const threshold = getThreshold(item.id);
+                      const warehouse = getEdit(cat, item.id, "qty_warehouse");
+                      const threshold = getEdit(cat, item.id, "shortage_threshold");
                       const inStock = Math.max(0, warehouse - (batInv.qty_issued || 0));
                       const isAlert = threshold > 0 && inStock < threshold;
-                      const hasEdits = warehouseEdits[item.id] !== undefined || thresholdEdits[item.id] !== undefined;
                       return (
                         <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 70px 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
                           <div>
                             <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name}</div>
                             <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
-                            {hasEdits && <button onClick={() => saveWarehouse(item.id)} style={{ marginTop: 4, padding: "2px 8px", borderRadius: 4, border: "none", background: "#185FA5", color: "#fff", fontSize: 10, cursor: "pointer" }}>Save</button>}
                           </div>
                           <div style={{ display: "flex", gap: 3 }}>
                             <button onClick={() => { if (!item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: item.in_stock ? "1.5px solid #166534" : "0.5px solid #e5e7eb", background: item.in_stock ? "#dcfce7" : "#fff", color: item.in_stock ? "#166534" : "#9ca3af", fontSize: 9, cursor: item.in_stock ? "default" : "pointer", fontWeight: 500 }}>In</button>
                             <button onClick={() => { if (item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: !item.in_stock ? "1.5px solid #991b1b" : "0.5px solid #e5e7eb", background: !item.in_stock ? "#fee2e2" : "#fff", color: !item.in_stock ? "#991b1b" : "#9ca3af", fontSize: 9, cursor: !item.in_stock ? "default" : "pointer", fontWeight: 500 }}>Out</button>
                           </div>
-                          <div style={{ textAlign: "center" }}><input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 52, padding: "4px 4px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
-                          <div style={{ textAlign: "center" }}><input type="number" min="0" value={warehouse} onChange={e => setWarehouseEdits(w => ({ ...w, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 60, padding: "4px 4px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
+                          <div style={{ textAlign: "center" }}><input type="number" min="0" value={threshold} onChange={e => setEdit(cat, item.id, "shortage_threshold", e.target.value)} style={{ width: 52, padding: "4px 4px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
+                          <div style={{ textAlign: "center" }}><input type="number" min="0" value={warehouse} onChange={e => setEdit(cat, item.id, "qty_warehouse", e.target.value)} style={{ width: 60, padding: "4px 4px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
                           <div style={{ fontSize: 13, color: batInv.qty_unserviceable > 0 ? "#991b1b" : "#111827", textAlign: "center" }}>{batInv.qty_unserviceable}</div>
                           <div style={{ fontSize: 13, color: "#111827", textAlign: "center" }}>{batInv.qty_issued}</div>
                           <div style={{ textAlign: "center" }}><span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280" }}>{inStock}</span></div>
                         </div>
                       );
                     })}
+                    {hasEdits && (
+                      <div style={{ padding: "10px 14px", background: "#f9fafb", borderTop: "0.5px solid #e5e7eb", display: "flex", justifyContent: "flex-end" }}>
+                        <button onClick={() => saveSection(cat, items)} disabled={savingSection[cat]} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>
+                          {savingSection[cat] ? "Saving..." : savedSection[cat] ? "Saved!" : `Save ${cat}`}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -708,7 +751,7 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
   );
 }
 
-function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }) {
+function BattalionPage({ brigades, battalions, inventory, categories, fetchInventoryOnly }) {
   const [selectedBat, setSelectedBat] = useState("");
   const [open, setOpen] = useState({});
   const [sectionEdits, setSectionEdits] = useState({});
@@ -717,8 +760,11 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
   const [supplyOpen, setSupplyOpen] = useState({});
   const [savingSection, setSavingSection] = useState({});
   const [savedSection, setSavedSection] = useState({});
+  const [localInventory, setLocalInventory] = useState(inventory);
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const toggleSupplyCat = cat => setSupplyOpen(o => ({ ...o, [cat]: !o[cat] }));
+
+  useEffect(() => { setLocalInventory(inventory); }, [inventory]);
 
   const sortedBattalions = [...battalions].sort((a, b) => {
     const aParts = a.unit_number?.split("-").map(Number) || [0, 0];
@@ -730,7 +776,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
   const bat = battalions.find(b => b.id === selectedBat);
   const brig = bat ? brigades.find(b => b.id === bat.brigade_id) : null;
 
-  function getInvRow(itemId) { return inventory.find(i => i.battalion_id === selectedBat && i.catalog_item_id === itemId); }
+  function getInvRow(itemId) { return localInventory.find(i => i.battalion_id === selectedBat && i.catalog_item_id === itemId); }
 
   function getEdit(cat, itemId, field) {
     if (sectionEdits[cat]?.[itemId]?.[field] !== undefined) return sectionEdits[cat][itemId][field];
@@ -739,18 +785,14 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
   }
 
   function setEdit(cat, itemId, field, value) {
-    setSectionEdits(e => ({
-      ...e,
-      [cat]: { ...e[cat], [itemId]: { ...e[cat]?.[itemId], [field]: parseInt(value) || 0 } }
-    }));
+    setSectionEdits(e => ({ ...e, [cat]: { ...e[cat], [itemId]: { ...e[cat]?.[itemId], [field]: parseInt(value) || 0 } } }));
   }
 
-  function catHasEdits(cat) {
-    return sectionEdits[cat] && Object.keys(sectionEdits[cat]).length > 0;
-  }
+  function catHasEdits(cat) { return sectionEdits[cat] && Object.keys(sectionEdits[cat]).length > 0; }
 
   async function saveSection(cat, items) {
     setSavingSection(s => ({ ...s, [cat]: true }));
+    const newInvRows = [];
     for (const item of items) {
       if (!sectionEdits[cat]?.[item.id]) continue;
       const existing = getInvRow(item.id);
@@ -763,10 +805,23 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
         shortage_threshold: getEdit(cat, item.id, "shortage_threshold"),
         updated_at: new Date().toISOString(),
       };
-      if (existing) await supabase.from("inventory").update(data).eq("id", existing.id);
-      else await supabase.from("inventory").insert([data]);
+      if (existing) {
+        await supabase.from("inventory").update(data).eq("id", existing.id);
+        newInvRows.push({ ...existing, ...data });
+      } else {
+        const { data: inserted } = await supabase.from("inventory").insert([data]).select().single();
+        if (inserted) newInvRows.push(inserted);
+      }
     }
-    await fetchAll();
+    setLocalInventory(prev => {
+      const updated = [...prev];
+      for (const row of newInvRows) {
+        const idx = updated.findIndex(i => i.battalion_id === row.battalion_id && i.catalog_item_id === row.catalog_item_id);
+        if (idx >= 0) updated[idx] = row;
+        else updated.push(row);
+      }
+      return updated;
+    });
     setSectionEdits(e => { const n = { ...e }; delete n[cat]; return n; });
     setSavingSection(s => ({ ...s, [cat]: false }));
     setSavedSection(s => ({ ...s, [cat]: true }));
@@ -815,7 +870,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
             </div>
           </div>
           <div style={{ marginBottom: 12, padding: "10px 14px", background: "#E6F1FB", borderRadius: 8, fontSize: 13, color: "#0C447C" }}>
-            Tap any category to expand it and update numbers. A save button appears at the bottom of each section when you make changes.
+            Tap any category to expand it. A save button appears at the bottom of each section when you make changes.
           </div>
           {SECTIONS.map(section => (
             <div key={section.header} style={{ marginBottom: 20 }}>
