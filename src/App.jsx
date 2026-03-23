@@ -6,18 +6,6 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
-const RESEND_KEY = import.meta.env.VITE_RESEND_API_KEY;
-
-async function sendEmail(to, subject, html) {
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${RESEND_KEY}` },
-      body: JSON.stringify({ from: "CACC Inventory <onboarding@resend.dev>", to, subject, html }),
-    });
-  } catch (e) { console.error("Email error:", e); }
-}
-
 const SECTIONS = [
   { header: "Accoutrements", groups: ["Accoutrements Class A", "Accoutrements Class B"] },
   { header: "Uniforms", groups: ["Class A Uniform", "Class B Uniform", "Class C Uniform", "PT Uniform"] },
@@ -37,6 +25,7 @@ export default function App() {
   const [stateInventory, setStateInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [requestType, setRequestType] = useState("commandant");
   const [requestForm, setRequestForm] = useState({ first_name: "", last_name: "", rank: "", phone: "", school_email: "", cacc_email: "", commandant_email: "", brigade_id: "", battalion_id: "" });
@@ -81,18 +70,25 @@ export default function App() {
       if (!existing.user_id) await supabase.from("user_roles").update({ user_id: session.user.id }).eq("email", email);
       setUserRole(existing);
       setAuthLoading(false);
-      if (existing.role !== "pending") fetchAll();
+      if (existing.role !== "pending") {
+        fetchAll();
+        fetchPendingCount();
+      }
     } else if (email.endsWith("@cacadets.org") || email.endsWith("@cacc.internal")) {
       const newUser = { user_id: session.user.id, email, full_name: name, role: "pending" };
       await supabase.from("user_roles").insert([newUser]);
-      await sendEmail("zak.lara@cacadets.org", "New CACC Inventory user — action required",
-        `<p>New user: <strong>${name}</strong> (${email})</p><p><a href="https://cacc-inventory.vercel.app">Approve at cacc-inventory.vercel.app</a></p>`);
       setUserRole({ ...newUser, role: "pending" });
       setAuthLoading(false);
     } else {
       setUserRole(null);
       setAuthLoading(false);
     }
+  }
+
+  async function fetchPendingCount() {
+    const { data } = await supabase.from("account_requests").select("id").eq("status", "pending");
+    const { data: pendingUsers } = await supabase.from("user_roles").select("id").eq("role", "pending");
+    setPendingCount((data?.length || 0) + (pendingUsers?.length || 0));
   }
 
   async function fetchAll() {
@@ -126,8 +122,6 @@ export default function App() {
     }
     setRequestSaving(true);
     await supabase.from("account_requests").insert([{ ...requestForm, rank: requestForm.rank || null, brigade_id: requestForm.brigade_id || null, battalion_id: requestForm.battalion_id || null, request_type: requestType }]);
-    await sendEmail("zak.lara@cacadets.org", `New ${requestType} account request — ${requestForm.first_name} ${requestForm.last_name}`,
-      `<p><strong>${requestForm.rank || ""} ${requestForm.first_name} ${requestForm.last_name}</strong> — ${requestType}</p><p>Email: ${requestForm.school_email}</p>${requestType === "cadet" ? `<p>Commandant: ${requestForm.commandant_email}</p>` : ""}<p><a href="https://cacc-inventory.vercel.app">Approve at cacc-inventory.vercel.app</a></p>`);
     setRequestSaving(false);
     setRequestSubmitted(true);
   }
@@ -164,14 +158,8 @@ export default function App() {
           <button onClick={() => setShowStaffLogin(s => !s)} style={{ width: "100%", padding: "12px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#f9fafb", fontSize: 14, cursor: "pointer", color: "#6b7280", marginBottom: 10 }}>Staff / approved account login</button>
           {showStaffLogin && (
             <div style={{ textAlign: "left", marginBottom: 10, padding: 16, background: "#f9fafb", borderRadius: 10, border: "0.5px solid #e5e7eb" }}>
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Username</div>
-                <input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="e.g. supply_admin_2026" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
-              </div>
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password</div>
-                <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && signInWithPassword()} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} />
-              </div>
+              <div style={{ marginBottom: 8 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Username</div><input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} placeholder="e.g. supply_admin_2026" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} /></div>
+              <div style={{ marginBottom: 10 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password</div><input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && signInWithPassword()} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff" }} /></div>
               {staffLoginError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 8, padding: "8px 10px", background: "#FEF2F2", borderRadius: 6 }}>{staffLoginError}</div>}
               <button onClick={signInWithPassword} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>Sign in</button>
             </div>
@@ -253,7 +241,7 @@ export default function App() {
     { id: "brigade", label: "Brigade inventory" },
     { id: "battalion", label: "Battalion dashboard" },
     { id: "units", label: "Unit management" },
-    ...(userRole.role === "state_admin" ? [{ id: "users", label: "User management" }] : []),
+    ...(userRole.role === "state_admin" ? [{ id: "users", label: "User management", badge: pendingCount }] : []),
   ];
 
   return (
@@ -263,7 +251,10 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center" }} className="desktop-tabs">
             {tabs.map(t => (
-              <div key={t.id} onClick={() => setPage(t.id)} style={{ padding: "14px 12px", fontSize: 13, cursor: "pointer", borderBottom: page === t.id ? "2px solid #185FA5" : "2px solid transparent", color: page === t.id ? "#185FA5" : "#6b7280", fontWeight: page === t.id ? 500 : 400, whiteSpace: "nowrap" }}>{t.label}</div>
+              <div key={t.id} onClick={() => setPage(t.id)} style={{ padding: "14px 12px", fontSize: 13, cursor: "pointer", borderBottom: page === t.id ? "2px solid #185FA5" : "2px solid transparent", color: page === t.id ? "#185FA5" : "#6b7280", fontWeight: page === t.id ? 500 : 400, whiteSpace: "nowrap", position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
+                {t.label}
+                {t.badge > 0 && <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>{t.badge}</span>}
+              </div>
             ))}
           </div>
         </div>
@@ -277,7 +268,12 @@ export default function App() {
       {menuOpen && (
         <div style={{ background: "#fff", borderBottom: "0.5px solid #e5e7eb", padding: "8px 0" }}>
           <div style={{ padding: "10px 20px", fontSize: 12, color: "#6b7280", borderBottom: "0.5px solid #f3f4f6" }}>{userRole.full_name} · {userRole.role.replace(/_/g, " ")}</div>
-          {tabs.map(t => <div key={t.id} onClick={() => { setPage(t.id); setMenuOpen(false); }} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", background: page === t.id ? "#E6F1FB" : "#fff", color: page === t.id ? "#185FA5" : "#111827", fontWeight: page === t.id ? 500 : 400, borderLeft: page === t.id ? "3px solid #185FA5" : "3px solid transparent" }}>{t.label}</div>)}
+          {tabs.map(t => (
+            <div key={t.id} onClick={() => { setPage(t.id); setMenuOpen(false); }} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", background: page === t.id ? "#E6F1FB" : "#fff", color: page === t.id ? "#185FA5" : "#111827", fontWeight: page === t.id ? 500 : 400, borderLeft: page === t.id ? "3px solid #185FA5" : "3px solid transparent", display: "flex", alignItems: "center", gap: 8 }}>
+              {t.label}
+              {t.badge > 0 && <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>{t.badge}</span>}
+            </div>
+          ))}
           <div onClick={signOut} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", color: "#991b1b" }}>Sign out</div>
         </div>
       )}
@@ -288,7 +284,7 @@ export default function App() {
             {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} />}
             {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchAll={fetchAll} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchAll={fetchAll} />}
-            {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} />}
+            {page === "users" && userRole.role === "state_admin" && <UserManagement brigades={brigades} battalions={battalions} fetchAll={fetchAll} fetchPendingCount={fetchPendingCount} />}
           </>
         )}
       </div>
@@ -296,10 +292,14 @@ export default function App() {
   );
 }
 
-function UserManagement({ brigades, battalions }) {
+function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState({ first_name: "", last_name: "", email: "", password: "", role: "battalion_staff", brigade_id: "", battalion_id: "" });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -317,6 +317,40 @@ function UserManagement({ brigades, battalions }) {
   async function updateUser(userId, updates) {
     await supabase.from("user_roles").update(updates).eq("id", userId);
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
+    fetchPendingCount();
+  }
+
+  async function createUser() {
+    setCreateError("");
+    if (!createForm.first_name || !createForm.last_name || !createForm.email || !createForm.password) {
+      setCreateError("Please fill in all required fields.");
+      return;
+    }
+    setCreating(true);
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: createForm.email,
+      password: createForm.password,
+      email_confirm: true,
+    });
+    if (error) {
+      setCreateError("Could not create auth user: " + error.message);
+      setCreating(false);
+      return;
+    }
+    await supabase.from("user_roles").insert([{
+      user_id: data.user.id,
+      email: createForm.email,
+      full_name: `${createForm.first_name} ${createForm.last_name}`,
+      role: createForm.role,
+      brigade_id: createForm.brigade_id || null,
+      battalion_id: createForm.battalion_id || null,
+      status: "active",
+    }]);
+    setCreateForm({ first_name: "", last_name: "", email: "", password: "", role: "battalion_staff", brigade_id: "", battalion_id: "" });
+    setShowCreateForm(false);
+    setCreating(false);
+    await fetchData();
+    fetchPendingCount();
   }
 
   async function approveRequest(req) {
@@ -325,11 +359,13 @@ function UserManagement({ brigades, battalions }) {
     await supabase.from("account_requests").update({ status: "approved" }).eq("id", req.id);
     setRequests(prev => prev.filter(r => r.id !== req.id));
     fetchData();
+    fetchPendingCount();
   }
 
   async function denyRequest(reqId) {
     await supabase.from("account_requests").update({ status: "denied" }).eq("id", reqId);
     setRequests(prev => prev.filter(r => r.id !== reqId));
+    fetchPendingCount();
   }
 
   const roleGroups = [
@@ -348,14 +384,51 @@ function UserManagement({ brigades, battalions }) {
 
   return (
     <div>
-      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: "#111827" }}>User management</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#111827" }}>User management</div>
+        <button onClick={() => setShowCreateForm(s => !s)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>+ Create user</button>
+      </div>
       <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Changes save automatically when you update a dropdown or status.</div>
+
+      {showCreateForm && (
+        <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Create new user</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>First name *</div><input value={createForm.first_name} onChange={e => setCreateForm(f => ({ ...f, first_name: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Last name *</div><input value={createForm.last_name} onChange={e => setCreateForm(f => ({ ...f, last_name: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Email *</div><input value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} placeholder="their@email.com" style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password *</div><input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} placeholder="Set their password" style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, color: "#111827", background: "#fff" }} /></div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Role *</div>
+              <select value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
+                {["battalion_staff", "brigade_staff", "admin", "state_admin"].map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+              </select>
+            </div>
+            <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade</div>
+              <select value={createForm.brigade_id} onChange={e => setCreateForm(f => ({ ...f, brigade_id: e.target.value, battalion_id: "" }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
+                <option value="">None</option>
+                {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion</div>
+              <select value={createForm.battalion_id} onChange={e => setCreateForm(f => ({ ...f, battalion_id: e.target.value }))} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 13, background: "#fff", color: "#111827" }}>
+                <option value="">None</option>
+                {(createForm.brigade_id ? battalions.filter(b => b.brigade_id === createForm.brigade_id) : battalions).map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+              </select>
+            </div>
+          </div>
+          {createError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 12, padding: "8px 12px", background: "#FEF2F2", borderRadius: 6 }}>{createError}</div>}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button onClick={() => { setShowCreateForm(false); setCreateError(""); }} style={{ padding: "9px 16px", borderRadius: 6, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827" }}>Cancel</button>
+            <button onClick={createUser} disabled={creating} style={{ padding: "9px 16px", borderRadius: 6, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>{creating ? "Creating..." : "Create user"}</button>
+          </div>
+        </div>
+      )}
 
       {requests.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#0C447C", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ background: "#E6F1FB", color: "#0C447C", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{requests.length} new</span>
-            Account requests
+            <span style={{ background: "#ef4444", color: "#fff", padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>{requests.length}</span>
+            Account requests pending
           </div>
           {requests.map(req => (
             <div key={req.id} style={{ background: "#E6F1FB", border: "0.5px solid #93c5fd", borderRadius: 10, padding: 14, marginBottom: 10 }}>
@@ -462,21 +535,14 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     await supabase.from("catalog_items").update({ in_stock: newVal }).eq("id", item.id);
   }
 
-  async function saveStateInventory() {
-    setSaving(true);
-    for (const itemId of Object.keys({ ...warehouseEdits, ...thresholdEdits })) {
-      const existing = stateInventory.find(s => s.catalog_item_id === itemId);
-      const data = { catalog_item_id: itemId, qty_warehouse: getWarehouse(itemId), shortage_threshold: getThreshold(itemId), updated_at: new Date().toISOString() };
-      if (existing) await supabase.from("state_inventory").update(data).eq("id", existing.id);
-      else await supabase.from("state_inventory").insert([data]);
-    }
-    await fetchAll();
-    setWarehouseEdits({});
-    setThresholdEdits({});
-    setSaving(false);
+  async function saveWarehouse(itemId) {
+    const existing = stateInventory.find(s => s.catalog_item_id === itemId);
+    const data = { catalog_item_id: itemId, qty_warehouse: getWarehouse(itemId), shortage_threshold: getThreshold(itemId), updated_at: new Date().toISOString() };
+    if (existing) await supabase.from("state_inventory").update(data).eq("id", existing.id);
+    else await supabase.from("state_inventory").insert([data]);
+    setWarehouseEdits(w => { const n = { ...w }; delete n[itemId]; return n; });
+    setThresholdEdits(t => { const n = { ...t }; delete n[itemId]; return n; });
   }
-
-  const hasEdits = Object.keys({ ...warehouseEdits, ...thresholdEdits }).length > 0;
 
   return (
     <div>
@@ -488,7 +554,6 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
           </div>
         ))}
       </div>
-      {hasEdits && <button onClick={saveStateInventory} disabled={saving} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", marginBottom: 16, fontWeight: 500 }}>{saving ? "Saving..." : "Save warehouse inventory"}</button>}
       {SECTIONS.map(section => (
         <div key={section.header} style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.header}</div>
@@ -517,11 +582,13 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                       const threshold = getThreshold(item.id);
                       const inStock = Math.max(0, warehouse - (batInv.qty_issued || 0));
                       const isAlert = threshold > 0 && inStock < threshold;
+                      const hasEdits = warehouseEdits[item.id] !== undefined || thresholdEdits[item.id] !== undefined;
                       return (
                         <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 70px 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
                           <div>
                             <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name}</div>
                             <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
+                            {hasEdits && <button onClick={() => saveWarehouse(item.id)} style={{ marginTop: 4, padding: "2px 8px", borderRadius: 4, border: "none", background: "#185FA5", color: "#fff", fontSize: 10, cursor: "pointer" }}>Save</button>}
                           </div>
                           <div style={{ display: "flex", gap: 3 }}>
                             <button onClick={() => { if (!item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: item.in_stock ? "1.5px solid #166534" : "0.5px solid #e5e7eb", background: item.in_stock ? "#dcfce7" : "#fff", color: item.in_stock ? "#166534" : "#9ca3af", fontSize: 9, cursor: item.in_stock ? "default" : "pointer", fontWeight: 500 }}>In</button>
@@ -644,39 +711,66 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
 function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }) {
   const [selectedBat, setSelectedBat] = useState("");
   const [open, setOpen] = useState({});
-  const [edits, setEdits] = useState({});
-  const [thresholdEdits, setThresholdEdits] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [sectionEdits, setSectionEdits] = useState({});
   const [showSupply, setShowSupply] = useState(false);
   const [supplyQtys, setSupplyQtys] = useState({});
   const [supplyOpen, setSupplyOpen] = useState({});
+  const [savingSection, setSavingSection] = useState({});
+  const [savedSection, setSavedSection] = useState({});
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const toggleSupplyCat = cat => setSupplyOpen(o => ({ ...o, [cat]: !o[cat] }));
+
+  const sortedBattalions = [...battalions].sort((a, b) => {
+    const aParts = a.unit_number?.split("-").map(Number) || [0, 0];
+    const bParts = b.unit_number?.split("-").map(Number) || [0, 0];
+    if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0];
+    return aParts[1] - bParts[1];
+  });
+
   const bat = battalions.find(b => b.id === selectedBat);
   const brig = bat ? brigades.find(b => b.id === bat.brigade_id) : null;
 
   function getInvRow(itemId) { return inventory.find(i => i.battalion_id === selectedBat && i.catalog_item_id === itemId); }
-  function getEdit(itemId, field) { const inv = getInvRow(itemId); if (edits[itemId]?.[field] !== undefined) return edits[itemId][field]; return inv ? (inv[field] || 0) : 0; }
-  function getThreshold(itemId) { if (thresholdEdits[itemId] !== undefined) return thresholdEdits[itemId]; const inv = getInvRow(itemId); return inv ? (inv.shortage_threshold || 0) : 0; }
-  function setEdit(itemId, field, value) { setEdits(e => ({ ...e, [itemId]: { ...e[itemId], [field]: parseInt(value) || 0 } })); }
 
-  async function saveAll() {
-    setSaving(true);
-    const allItems = Object.values(categories).flat();
-    for (const item of allItems) {
-      if (!edits[item.id] && !thresholdEdits[item.id]) continue;
+  function getEdit(cat, itemId, field) {
+    if (sectionEdits[cat]?.[itemId]?.[field] !== undefined) return sectionEdits[cat][itemId][field];
+    const inv = getInvRow(itemId);
+    return inv ? (inv[field] || 0) : 0;
+  }
+
+  function setEdit(cat, itemId, field, value) {
+    setSectionEdits(e => ({
+      ...e,
+      [cat]: { ...e[cat], [itemId]: { ...e[cat]?.[itemId], [field]: parseInt(value) || 0 } }
+    }));
+  }
+
+  function catHasEdits(cat) {
+    return sectionEdits[cat] && Object.keys(sectionEdits[cat]).length > 0;
+  }
+
+  async function saveSection(cat, items) {
+    setSavingSection(s => ({ ...s, [cat]: true }));
+    for (const item of items) {
+      if (!sectionEdits[cat]?.[item.id]) continue;
       const existing = getInvRow(item.id);
-      const data = { battalion_id: selectedBat, catalog_item_id: item.id, qty_serviceable: getEdit(item.id, "qty_serviceable"), qty_unserviceable: getEdit(item.id, "qty_unserviceable"), qty_issued: getEdit(item.id, "qty_issued"), shortage_threshold: getThreshold(item.id), updated_at: new Date().toISOString() };
+      const data = {
+        battalion_id: selectedBat,
+        catalog_item_id: item.id,
+        qty_serviceable: getEdit(cat, item.id, "qty_serviceable"),
+        qty_unserviceable: getEdit(cat, item.id, "qty_unserviceable"),
+        qty_issued: getEdit(cat, item.id, "qty_issued"),
+        shortage_threshold: getEdit(cat, item.id, "shortage_threshold"),
+        updated_at: new Date().toISOString(),
+      };
       if (existing) await supabase.from("inventory").update(data).eq("id", existing.id);
       else await supabase.from("inventory").insert([data]);
     }
     await fetchAll();
-    setEdits({});
-    setThresholdEdits({});
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSectionEdits(e => { const n = { ...e }; delete n[cat]; return n; });
+    setSavingSection(s => ({ ...s, [cat]: false }));
+    setSavedSection(s => ({ ...s, [cat]: true }));
+    setTimeout(() => setSavedSection(s => ({ ...s, [cat]: false })), 3000);
   }
 
   function exportSupplyPDF() {
@@ -702,13 +796,11 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
     const a = document.createElement("a"); a.href = url; a.download = `Supply-Request-${bat.unit_number}-${dateStr}.csv`; a.click();
   }
 
-  const hasEdits = Object.keys({ ...edits, ...thresholdEdits }).length > 0;
-
   return (
     <div>
-      <select onChange={e => { setSelectedBat(e.target.value); setOpen({}); setEdits({}); setThresholdEdits({}); setShowSupply(false); setSupplyQtys({}); }} value={selectedBat} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827", marginBottom: 12 }}>
+      <select onChange={e => { setSelectedBat(e.target.value); setOpen({}); setSectionEdits({}); setShowSupply(false); setSupplyQtys({}); }} value={selectedBat} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827", marginBottom: 12 }}>
         <option value="">Select a battalion...</option>
-        {battalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
+        {sortedBattalions.map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
       </select>
       {bat && (
         <>
@@ -722,11 +814,8 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
               ))}
             </div>
           </div>
-          <button onClick={saveAll} disabled={saving || !hasEdits} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: hasEdits ? "#185FA5" : "#d1d5db", color: "#fff", fontSize: 14, cursor: hasEdits ? "pointer" : "default", marginBottom: 16, fontWeight: 500 }}>
-            {saving ? "Saving..." : saved ? "Saved!" : "Save inventory"}
-          </button>
           <div style={{ marginBottom: 12, padding: "10px 14px", background: "#E6F1FB", borderRadius: 8, fontSize: 13, color: "#0C447C" }}>
-            Tap any category to expand it, update the numbers, then tap Save inventory.
+            Tap any category to expand it and update numbers. A save button appears at the bottom of each section when you make changes.
           </div>
           {SECTIONS.map(section => (
             <div key={section.header} style={{ marginBottom: 20 }}>
@@ -734,6 +823,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
               {section.groups.map(cat => {
                 const items = categories[cat] || [];
                 if (items.length === 0) return null;
+                const hasEdits = catHasEdits(cat);
                 return (
                   <div key={cat} style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
                     <div onClick={() => toggleCat(cat)} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
@@ -750,10 +840,10 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
                           {["Alert", "Svc", "Unsvc", "Issued", "Stock"].map(h => <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: "center" }}>{h}</div>)}
                         </div>
                         {items.map(item => {
-                          const svc = getEdit(item.id, "qty_serviceable");
-                          const unsvc = getEdit(item.id, "qty_unserviceable");
-                          const issued = getEdit(item.id, "qty_issued");
-                          const threshold = getThreshold(item.id);
+                          const svc = getEdit(cat, item.id, "qty_serviceable");
+                          const unsvc = getEdit(cat, item.id, "qty_unserviceable");
+                          const issued = getEdit(cat, item.id, "qty_issued");
+                          const threshold = getEdit(cat, item.id, "shortage_threshold");
                           const inStock = Math.max(0, svc - issued);
                           const isAlert = threshold > 0 && inStock < threshold;
                           return (
@@ -762,14 +852,21 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchAll }
                                 <div style={{ fontSize: 13, fontWeight: isAlert ? 600 : 400, color: "#111827" }}>{item.item_name}</div>
                                 <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
                               </div>
-                              <input type="number" min="0" value={threshold} onChange={e => setThresholdEdits(t => ({ ...t, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
-                              <input type="number" min="0" value={svc} onChange={e => setEdit(item.id, "qty_serviceable", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
-                              <input type="number" min="0" value={unsvc} onChange={e => setEdit(item.id, "qty_unserviceable", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
-                              <input type="number" min="0" value={issued} onChange={e => setEdit(item.id, "qty_issued", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
+                              <input type="number" min="0" value={threshold} onChange={e => setEdit(cat, item.id, "shortage_threshold", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
+                              <input type="number" min="0" value={svc} onChange={e => setEdit(cat, item.id, "qty_serviceable", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
+                              <input type="number" min="0" value={unsvc} onChange={e => setEdit(cat, item.id, "qty_unserviceable", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
+                              <input type="number" min="0" value={issued} onChange={e => setEdit(cat, item.id, "qty_issued", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
                               <div style={{ textAlign: "center" }}><span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 999, background: isAlert ? "#fee2e2" : inStock > 0 ? "#dcfce7" : "#f3f4f6", color: isAlert ? "#991b1b" : inStock > 0 ? "#166534" : "#6b7280" }}>{inStock}</span></div>
                             </div>
                           );
                         })}
+                        {hasEdits && (
+                          <div style={{ padding: "10px 14px", background: "#f9fafb", borderTop: "0.5px solid #e5e7eb", display: "flex", justifyContent: "flex-end" }}>
+                            <button onClick={() => saveSection(cat, items)} disabled={savingSection[cat]} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }}>
+                              {savingSection[cat] ? "Saving..." : savedSection[cat] ? "Saved!" : `Save ${cat}`}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -842,9 +939,17 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
   const [form, setForm] = useState({ unit_number: "", school_name: "", school_address: "", cadet_count: "", commandant_name: "", commandant_email: "", phone: "", brigade_id: "" });
   const [saving, setSaving] = useState(false);
 
+  const sortedBattalions = [...battalions].sort((a, b) => {
+    const aParts = a.unit_number?.split("-").map(Number) || [0, 0];
+    const bParts = b.unit_number?.split("-").map(Number) || [0, 0];
+    if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0];
+    return aParts[1] - bParts[1];
+  });
+
   async function saveUnit() {
     setSaving(true);
-    await supabase.from("battalions").insert([{ ...form, cadet_count: parseInt(form.cadet_count) || 0, status: "active" }]);
+    const { error } = await supabase.from("battalions").insert([{ ...form, cadet_count: parseInt(form.cadet_count) || 0, status: "active" }]);
+    if (error) { alert("Error saving unit: " + error.message); setSaving(false); return; }
     await fetchAll();
     setShowForm(false);
     setForm({ unit_number: "", school_name: "", school_address: "", cadet_count: "", commandant_name: "", commandant_email: "", phone: "", brigade_id: "" });
@@ -882,7 +987,7 @@ function UnitsPage({ brigades, battalions, fetchAll }) {
         </div>
       )}
       <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-        {battalions.map(bat => {
+        {sortedBattalions.map(bat => {
           const brig = brigades.find(b => b.id === bat.brigade_id);
           return (
             <div key={bat.id} style={{ padding: "12px 14px", borderBottom: "0.5px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
