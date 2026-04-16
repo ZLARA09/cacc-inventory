@@ -1,184 +1,239 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
+-- Step 1: Add school_abbr column to battalions table
+ALTER TABLE battalions ADD COLUMN IF NOT EXISTS school_abbr VARCHAR(5);
 
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-}
+-- Step 2: Update all battalions with abbreviations
+-- BDE 1
+UPDATE battalions SET school_abbr = 'SHHS'  WHERE unit_number = '1-186';
+UPDATE battalions SET school_abbr = 'NMS'   WHERE unit_number = '1-233';
+UPDATE battalions SET school_abbr = 'BHS'   WHERE unit_number = '1-236';
+UPDATE battalions SET school_abbr = 'MVMS'  WHERE unit_number = '1-253';
+UPDATE battalions SET school_abbr = 'YVHS'  WHERE unit_number = '1-258';
+UPDATE battalions SET school_abbr = 'LCMS'  WHERE unit_number = '1-259';
+UPDATE battalions SET school_abbr = 'TNPJ'  WHERE unit_number = '1-260';
+UPDATE battalions SET school_abbr = 'TNPH'  WHERE unit_number = '1-261';
+UPDATE battalions SET school_abbr = 'SWHS'  WHERE unit_number = '1-285';
+UPDATE battalions SET school_abbr = 'SGMS'  WHERE unit_number = '1-309';
+UPDATE battalions SET school_abbr = 'HES'   WHERE unit_number = '1-315';
+UPDATE battalions SET school_abbr = 'DRA'   WHERE unit_number = '1-432';
+UPDATE battalions SET school_abbr = 'CVHS'  WHERE unit_number = '1-435';
+UPDATE battalions SET school_abbr = 'CMS'   WHERE unit_number = '1-436';
+UPDATE battalions SET school_abbr = 'PDCMS' WHERE unit_number = '1-438';
+UPDATE battalions SET school_abbr = 'TJMS'  WHERE unit_number = '1-503';
 
-.hero {
-  position: relative;
+-- BDE 2
+UPDATE battalions SET school_abbr = 'SMMS'  WHERE unit_number = '2-103';
+UPDATE battalions SET school_abbr = 'AMS'   WHERE unit_number = '2-234';
+UPDATE battalions SET school_abbr = 'KNMS'  WHERE unit_number = '2-240';
+UPDATE battalions SET school_abbr = 'BSMS'  WHERE unit_number = '2-247';
+UPDATE battalions SET school_abbr = 'MMS'   WHERE unit_number = '2-248';
+UPDATE battalions SET school_abbr = 'WPMS'  WHERE unit_number = '2-249';
+UPDATE battalions SET school_abbr = 'CLVES' WHERE unit_number = '2-251';
+UPDATE battalions SET school_abbr = 'VVRLC' WHERE unit_number = '2-254';
+UPDATE battalions SET school_abbr = 'TDSMS' WHERE unit_number = '2-270';
+UPDATE battalions SET school_abbr = 'YHS'   WHERE unit_number = '2-287';
+UPDATE battalions SET school_abbr = 'SRA'   WHERE unit_number = '2-310';
+UPDATE battalions SET school_abbr = 'LMAM'  WHERE unit_number = '2-322';
+UPDATE battalions SET school_abbr = 'MEHS'  WHERE unit_number = '2-709';
+UPDATE battalions SET school_abbr = 'CHHS'  WHERE unit_number = '2-710';
 
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
+-- BDE 3
+UPDATE battalions SET school_abbr = 'BMS'   WHERE unit_number = '3-402';
+UPDATE battalions SET school_abbr = 'BMS2'  WHERE unit_number = '3-403';
+UPDATE battalions SET school_abbr = 'PIXLY' WHERE unit_number = '3-400';
+UPDATE battalions SET school_abbr = 'LSMA'  WHERE unit_number = '3-425';
+UPDATE battalions SET school_abbr = 'MWHS'  WHERE unit_number = '3-427';
+UPDATE battalions SET school_abbr = 'LSAH'  WHERE unit_number = '3-429';
+UPDATE battalions SET school_abbr = 'OMI'   WHERE unit_number = '3-430';
 
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
+-- BDE 4
+UPDATE battalions SET school_abbr = 'DCA'   WHERE unit_number = '4-371';
+UPDATE battalions SET school_abbr = 'OMI2'  WHERE unit_number = '4-49';
+UPDATE battalions SET school_abbr = 'YSMT'  WHERE unit_number = '4-66';
 
-  .framework,
-  .vite {
-    position: absolute;
-  }
+-- BDE 5
+UPDATE battalions SET school_abbr = 'MSES'  WHERE unit_number = '5-366';
+UPDATE battalions SET school_abbr = 'CLGES' WHERE unit_number = '5-405';
+UPDATE battalions SET school_abbr = 'OES'   WHERE unit_number = '5-407';
+UPDATE battalions SET school_abbr = 'COMS'  WHERE unit_number = '5-408';
+UPDATE battalions SET school_abbr = 'WES'   WHERE unit_number = '5-412';
+UPDATE battalions SET school_abbr = 'YSMT2' WHERE unit_number = '5-66';
+UPDATE battalions SET school_abbr = 'LUHS'  WHERE unit_number = '6-7';
 
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
+-- BDE 6
+UPDATE battalions SET school_abbr = 'SFCS'  WHERE unit_number = '6-302';
+UPDATE battalions SET school_abbr = 'WHS'   WHERE unit_number = '6-330';
+UPDATE battalions SET school_abbr = 'UMHS'  WHERE unit_number = '6-369';
+UPDATE battalions SET school_abbr = 'CCHS2' WHERE unit_number = '6-434';
+UPDATE battalions SET school_abbr = 'LUHS'  WHERE unit_number = '6-7';
+UPDATE battalions SET school_abbr = 'CUHS'  WHERE unit_number = '6-900';
+UPDATE battalions SET school_abbr = 'ACS'   WHERE unit_number = '7-215';
 
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
-}
+-- BDE 7
+UPDATE battalions SET school_abbr = 'TCSD'  WHERE unit_number = '7-701';
+UPDATE battalions SET school_abbr = 'PMS'   WHERE unit_number = '7-205';
 
-#center {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
+-- BDE 8
+UPDATE battalions SET school_abbr = 'PTMS'  WHERE unit_number = '8-206';
+UPDATE battalions SET school_abbr = 'AMES'  WHERE unit_number = '8-207';
+UPDATE battalions SET school_abbr = 'WRMS'  WHERE unit_number = '8-237';
+UPDATE battalions SET school_abbr = 'RDVM'  WHERE unit_number = '8-208';
+UPDATE battalions SET school_abbr = 'HMS'   WHERE unit_number = '8-704';
+UPDATE battalions SET school_abbr = 'CCMS'  WHERE unit_number = '8-107';
 
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
+-- BDE 9
+UPDATE battalions SET school_abbr = 'CJHS'  WHERE unit_number = '9-301';
+UPDATE battalions SET school_abbr = 'CMI'   WHERE unit_number = '9-319';
 
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
+-- BDE 11
+UPDATE battalions SET school_abbr = 'CE'    WHERE unit_number = '11-301';
+UPDATE battalions SET school_abbr = 'NSLA'  WHERE unit_number = '11-302';
+UPDATE battalions SET school_abbr = 'NSLA2' WHERE unit_number = '11-303';
+UPDATE battalions SET school_abbr = 'CECMS' WHERE unit_number = '11-305';
+UPDATE battalions SET school_abbr = 'CTMS'  WHERE unit_number = '11-307';
+UPDATE battalions SET school_abbr = 'SGHS'  WHERE unit_number = '11-308';
+UPDATE battalions SET school_abbr = 'PHS'   WHERE unit_number = '11-309';
+UPDATE battalions SET school_abbr = 'DVMS'  WHERE unit_number = '11-323';
+UPDATE battalions SET school_abbr = 'AVMS'  WHERE unit_number = '11-325';
+UPDATE battalions SET school_abbr = 'SHMS'  WHERE unit_number = '11-335';
+UPDATE battalions SET school_abbr = 'MLKMS' WHERE unit_number = '11-336';
+UPDATE battalions SET school_abbr = 'SMS'   WHERE unit_number = '11-337';
+UPDATE battalions SET school_abbr = 'ISHS'  WHERE unit_number = '11-359';
 
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
+-- BDE 12
+UPDATE battalions SET school_abbr = 'MHS'   WHERE unit_number = '12-244';
+UPDATE battalions SET school_abbr = 'GHS'   WHERE unit_number = '12-246';
+UPDATE battalions SET school_abbr = 'KCHS'  WHERE unit_number = '12-249';
+UPDATE battalions SET school_abbr = 'NMCHS' WHERE unit_number = '12-257';
+UPDATE battalions SET school_abbr = 'GYA'   WHERE unit_number = '12-361';
+UPDATE battalions SET school_abbr = 'PVMA'  WHERE unit_number = '12-372';
 
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
+-- BDE 13
+UPDATE battalions SET school_abbr = 'PTMA'  WHERE unit_number = '13-329';
+UPDATE battalions SET school_abbr = 'BNMS'  WHERE unit_number = '13-113';
 
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
+-- BDE 14
+UPDATE battalions SET school_abbr = 'EMS'   WHERE unit_number = '14-115';
+UPDATE battalions SET school_abbr = 'WMS'   WHERE unit_number = '14-118';
 
-#docs {
-  border-right: 1px solid var(--border);
+-- BDE 15
+UPDATE battalions SET school_abbr = 'MCFMS' WHERE unit_number = '15-239';
+UPDATE battalions SET school_abbr = 'WJSHS' WHERE unit_number = '15-272';
+UPDATE battalions SET school_abbr = 'RHS'   WHERE unit_number = '15-273';
+UPDATE battalions SET school_abbr = 'CCHS'  WHERE unit_number = '15-274';
+UPDATE battalions SET school_abbr = 'TMS'   WHERE unit_number = '15-277';
+UPDATE battalions SET school_abbr = 'GFMS'  WHERE unit_number = '15-428';
+UPDATE battalions SET school_abbr = 'CMA'   WHERE unit_number = '15-506';
+UPDATE battalions SET school_abbr = 'CRMS'  WHERE unit_number = '15-702';
 
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
+-- BDE 18
+UPDATE battalions SET school_abbr = 'SLVHS' WHERE unit_number = '18-263';
+UPDATE battalions SET school_abbr = 'HJHS'  WHERE unit_number = '18-265';
+UPDATE battalions SET school_abbr = 'CIMS'  WHERE unit_number = '18-267';
+UPDATE battalions SET school_abbr = 'CLMS'  WHERE unit_number = '18-268';
+UPDATE battalions SET school_abbr = 'MLMS'  WHERE unit_number = '18-269';
+UPDATE battalions SET school_abbr = 'SVHS'  WHERE unit_number = '18-275';
+UPDATE battalions SET school_abbr = 'UPS'   WHERE unit_number = '18-276';
+UPDATE battalions SET school_abbr = 'SRHS'  WHERE unit_number = '18-279';
+UPDATE battalions SET school_abbr = 'BRHS'  WHERE unit_number = '18-280';
+UPDATE battalions SET school_abbr = 'BJHS'  WHERE unit_number = '18-281';
+UPDATE battalions SET school_abbr = 'ECS'   WHERE unit_number = '18-318';
+UPDATE battalions SET school_abbr = 'RPS'   WHERE unit_number = '18-380';
+UPDATE battalions SET school_abbr = 'SLA'   WHERE unit_number = '18-391';
 
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
+-- Step 3: Add ticket counter table for global annual sequence
+CREATE TABLE IF NOT EXISTS ticket_counter (
+  id SERIAL PRIMARY KEY,
+  year INTEGER NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(year)
+);
 
-  .logo {
-    height: 18px;
-  }
+-- Seed current year
+INSERT INTO ticket_counter (year, counter)
+VALUES (EXTRACT(YEAR FROM NOW())::INTEGER, 0)
+ON CONFLICT (year) DO NOTHING;
 
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
+-- Step 4: Add supply_requests table
+CREATE TABLE IF NOT EXISTS supply_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  ticket_id TEXT NOT NULL UNIQUE,
+  battalion_id UUID REFERENCES battalions(id),
+  brigade_id UUID REFERENCES brigades(id),
+  status TEXT NOT NULL DEFAULT 'submitted'
+    CHECK (status IN ('submitted','in_review','fulfilling','shipped','delivered','backlog','archived')),
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  notes TEXT,
+  tracking_number TEXT,
+  estimated_delivery DATE,
+  created_by UUID
+);
 
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
+-- Step 5: Add supply_request_items table
+CREATE TABLE IF NOT EXISTS supply_request_items (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  request_id UUID REFERENCES supply_requests(id) ON DELETE CASCADE,
+  catalog_item_id UUID REFERENCES catalog_items(id),
+  qty_requested INTEGER NOT NULL DEFAULT 0,
+  qty_fulfilled INTEGER NOT NULL DEFAULT 0,
+  item_status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (item_status IN ('pending','fulfilled','partial','backordered','out_of_stock')),
+  notes TEXT
+);
 
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
+-- Step 6: Enable RLS on new tables (match existing pattern)
+ALTER TABLE supply_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE supply_request_items ENABLE ROW LEVEL SECURITY;
 
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
+-- Step 7: RLS policies - authenticated users can read, state_admin/admin can write
+CREATE POLICY "Allow read for authenticated" ON supply_requests
+  FOR SELECT TO authenticated USING (true);
 
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
-}
+CREATE POLICY "Allow insert for authenticated" ON supply_requests
+  FOR INSERT TO authenticated WITH CHECK (true);
 
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
-}
+CREATE POLICY "Allow update for authenticated" ON supply_requests
+  FOR UPDATE TO authenticated USING (true);
 
-.ticks {
-  position: relative;
-  width: 100%;
+CREATE POLICY "Allow read for authenticated" ON supply_request_items
+  FOR SELECT TO authenticated USING (true);
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+CREATE POLICY "Allow insert for authenticated" ON supply_request_items
+  FOR INSERT TO authenticated WITH CHECK (true);
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
-}
+CREATE POLICY "Allow update for authenticated" ON supply_request_items
+  FOR UPDATE TO authenticated USING (true);
+
+-- Step 8: Function to generate ticket ID
+CREATE OR REPLACE FUNCTION generate_ticket_id(
+  p_brigade_number TEXT,
+  p_battalion_number TEXT,
+  p_school_abbr TEXT
+) RETURNS TEXT AS $$
+DECLARE
+  v_year INTEGER;
+  v_counter INTEGER;
+  v_date TEXT;
+  v_time TEXT;
+  v_ticket_id TEXT;
+BEGIN
+  v_year := EXTRACT(YEAR FROM NOW() AT TIME ZONE 'America/Los_Angeles')::INTEGER;
+  v_date := TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYYMMDD');
+  v_time := TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'HH24MI');
+
+  INSERT INTO ticket_counter (year, counter)
+  VALUES (v_year, 1)
+  ON CONFLICT (year) DO UPDATE
+    SET counter = ticket_counter.counter + 1
+  RETURNING counter INTO v_counter;
+
+  v_ticket_id := p_brigade_number || 'BDE-' ||
+                 p_battalion_number || '-' ||
+                 p_school_abbr || '-' ||
+                 v_date || '-' ||
+                 v_time || '_' ||
+                 v_counter::TEXT;
+
+  RETURN v_ticket_id;
+END;
+$$ LANGUAGE plpgsql;
