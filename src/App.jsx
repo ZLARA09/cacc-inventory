@@ -1841,4 +1841,3 @@ function UnitsPage({ brigades, battalions, fetchBattalionsOnly }) {
     </div>
   );
 }
-
