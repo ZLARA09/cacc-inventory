@@ -400,7 +400,7 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
     const { data, error } = await supabase
       .from("supply_requests")
       .select("*, supply_request_items(*), battalions(unit_number, school_name, school_abbr, brigade_id, commandant_name, commandant_email, phone), brigades(name, brigade_number)")
-      .order("submitted_at", { ascending: false });
+      .order("created_at", { ascending: false });
     if (!error) setRequests(data || []);
     setLoading(false);
   }
@@ -465,8 +465,8 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
             {hasAlert && <div style={{ fontSize: 10, color: "#991b1b", marginTop: 4 }}>⚠ Items need attention</div>}
           </div>
         </div>
-        <div style={{ fontSize: 11, color: "#9ca3af" }}>Submitted: {formatDateShort(req.submitted_at)}</div>
-        <div style={{ fontSize: 11, color: "#9ca3af" }}>Last updated: {formatDateShort(req.last_updated_at)}</div>
+        <div style={{ fontSize: 11, color: "#9ca3af" }}>Submitted: {formatDateShort(req.created_at)}</div>
+        <div style={{ fontSize: 11, color: "#9ca3af" }}>Last updated: {formatDateShort(req.last_updated_at || req.created_at)}</div>
         <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>{req.supply_request_items?.length || 0} line items</div>
       </div>
     );
@@ -520,7 +520,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
     let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}h1{font-size:16px;margin-bottom:2px}.meta{font-size:10px;color:#555;margin-bottom:4px}.divider{border:none;border-top:1px solid #e5e7eb;margin:12px 0}table{width:100%;border-collapse:collapse;margin-top:12px}th{text-align:left;padding:5px 8px;background:#f3f4f6;font-size:10px;border-bottom:1px solid #e5e7eb}td{padding:5px 8px;border-bottom:0.5px solid #f3f4f6;font-size:10px}.badge{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:bold}</style></head><body>`;
     html += `<h1>CACC Supply Request</h1>`;
     html += `<div class="meta"><strong>Ticket:</strong> ${ticket.ticket_id}</div>`;
-    html += `<div class="meta"><strong>Last updated:</strong> ${formatDateShort(ticket.last_updated_at)}</div>`;
+    html += `<div class="meta"><strong>Last updated:</strong> ${formatDateShort(ticket.last_updated_at || ticket.created_at)}</div>`;
     html += `<hr class="divider">`;
     html += `<div class="meta"><strong>Unit:</strong> ${bat?.unit_number} — ${bat?.school_name}</div>`;
     html += `<div class="meta"><strong>Brigade:</strong> ${brig?.name}</div>`;
@@ -553,7 +553,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", marginBottom: 4 }}>SUBMITTED: {ticket.ticket_id}</div>
-            <div style={{ fontSize: 10, color: "#9ca3af" }}>LAST UPDATED: {formatDateShort(ticket.last_updated_at)}</div>
+            <div style={{ fontSize: 10, color: "#9ca3af" }}>LAST UPDATED: {formatDateShort(ticket.last_updated_at || ticket.created_at)}</div>
           </div>
           <span style={{ fontSize: 12, padding: "4px 12px", borderRadius: 999, background: sc.bg, color: sc.color, fontWeight: 600 }}>{sc.label}</span>
         </div>
@@ -1261,7 +1261,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
   function catHasEdits(cat) { return sectionEdits[cat] && Object.keys(sectionEdits[cat]).length > 0; }
 
   async function fetchMyRequests(batId) {
-    const { data } = await supabase.from("supply_requests").select("*, supply_request_items(*)").eq("battalion_id", batId).order("submitted_at", { ascending: false });
+    const { data } = await supabase.from("supply_requests").select("*, supply_request_items(*)").eq("battalion_id", batId).order("created_at", { ascending: false });
     setMyRequests(data || []);
   }
 
@@ -1515,8 +1515,8 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
                           </div>
                           <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: sc.bg, color: sc.color, fontWeight: 600 }}>{sc.label.split("—")[0].trim()}</span>
                         </div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>Submitted: {formatDateShort(req.submitted_at)}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>Updated: {formatDateShort(req.last_updated_at)}</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af" }}>Submitted: {formatDateShort(req.created_at)}</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af" }}>Updated: {formatDateShort(req.last_updated_at || req.created_at)}</div>
                       </div>
                     );
                   })}
