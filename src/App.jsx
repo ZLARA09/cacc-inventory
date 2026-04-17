@@ -34,12 +34,12 @@ const LIGHT_THEME = {
 
 const DARK_THEME = {
   bg: "#0f172a",
-  surface: theme.text,
+  surface: "#111827",
   text: "#f8fafc",
   textSecondary: "#cbd5e1",
   border: "#334155",
   borderLight: "#475569",
-  accentBg: theme.text,
+  accentBg: "#1e293b",
   accent: "#60a5fa",
   accentLight: "#93c5fd",
 };
