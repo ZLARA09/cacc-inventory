@@ -19,10 +19,36 @@ const NAV_ACTIVE = "#185FA5";
 const NAV_TEXT = "#cbd5e1";
 const NAV_TEXT_ACTIVE = "#ffffff";
 
+// ─── THEME CONFIGURATION ─────────────────────────────────────────────────────
+const LIGHT_THEME = {
+  bg: "#f1f5f9",
+  surface: "#fff",
+  text: "#111827",
+  textSecondary: "#6b7280",
+  border: "#e5e7eb",
+  borderLight: "#f3f4f6",
+  accentBg: "#E6F1FB",
+  accent: "#185FA5",
+  accentLight: "#0C447C",
+};
+
+const DARK_THEME = {
+  bg: "#0f172a",
+  surface: "#1e293b",
+  text: "#e2e8f0",
+  textSecondary: "#94a3b8",
+  border: "#334155",
+  borderLight: "#475569",
+  accentBg: "#0c3a5f",
+  accent: "#3b82f6",
+  accentLight: "#60a5fa",
+};
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [page, setPage] = useState("state");
   const [categories, setCategories] = useState({});
   const [brigades, setBrigades] = useState([]);
@@ -45,6 +71,8 @@ export default function App() {
   const [staffLoginError, setStaffLoginError] = useState("");
 
   useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "dark") setIsDarkMode(true);
     fetchPublicData();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -156,6 +184,12 @@ export default function App() {
 
   async function signOut() { await supabase.auth.signOut(); }
 
+  function toggleTheme() {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    localStorage.setItem("theme", newMode ? "dark" : "light");
+  }
+
   if (authLoading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f1f5f9", fontFamily: "sans-serif" }}>
       <div style={{ textAlign: "center" }}>
@@ -258,6 +292,7 @@ export default function App() {
 
   const isStateAdmin = userRole.role === "state_admin";
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole.role);
+  const theme = isDarkMode ? DARK_THEME : LIGHT_THEME;
 
   const tabs = [
     { id: "state", label: "State dashboard" },
@@ -269,7 +304,7 @@ export default function App() {
   ];
 
   return (
-    <div style={{ fontFamily: "sans-serif", minHeight: "100vh", background: "#f1f5f9" }}>
+    <div style={{ fontFamily: "sans-serif", minHeight: "100vh", background: theme.bg }}>
       {/* ── NAVY HEADER (Item 18) ── */}
       <div style={{ background: NAV_BG, padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56 }}>
         <div style={{ fontWeight: 700, fontSize: 16, color: "#fff", marginRight: 20, flexShrink: 0, letterSpacing: "0.02em" }}>
@@ -287,6 +322,7 @@ export default function App() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div className="desktop-tabs" style={{ fontSize: 12, color: NAV_TEXT }}>{userRole.full_name} · {userRole.role.replace(/_/g, " ")}</div>
+          <button onClick={toggleTheme} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #334155", background: "transparent", fontSize: 12, cursor: "pointer", color: NAV_TEXT, title: isDarkMode ? "Switch to light mode" : "Switch to dark mode" }}>{isDarkMode ? "☀" : "🌙"}</button>
           <button onClick={signOut} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #334155", background: "transparent", fontSize: 12, cursor: "pointer", color: NAV_TEXT }}>Sign out</button>
           <button onClick={() => setMenuOpen(m => !m)} className="mobile-menu-btn" style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #334155", background: "transparent", fontSize: 13, cursor: "pointer", color: "#fff", flexShrink: 0 }}>{menuOpen ? "✕" : "☰"}</button>
         </div>
@@ -307,15 +343,15 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ padding: 16 }}>
-        {loading ? <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Loading...</div> : (
+      <div style={{ padding: 16, background: theme.bg, color: theme.text }}>
+        {loading ? <div style={{ padding: 40, textAlign: "center", color: theme.textSecondary }}>Loading...</div> : (
           <>
-            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} />}
-            {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} />}
-            {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} />}
-            {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchBattalionsOnly={fetchBattalionsOnly} />}
-            {page === "requests" && isAdminOrAbove && <SupplyRequestsPage brigades={brigades} battalions={battalions} categories={categories} inventory={inventory} userRole={userRole} />}
-            {page === "users" && isStateAdmin && <UserManagement brigades={brigades} battalions={battalions} fetchAll={fetchAll} fetchPendingCount={fetchPendingCount} />}
+            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} theme={theme} />}
+            {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} theme={theme} />}
+            {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} theme={theme} />}
+            {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchBattalionsOnly={fetchBattalionsOnly} theme={theme} />}
+            {page === "requests" && isAdminOrAbove && <SupplyRequestsPage brigades={brigades} battalions={battalions} categories={categories} inventory={inventory} userRole={userRole} theme={theme} />}
+            {page === "users" && isStateAdmin && <UserManagement brigades={brigades} battalions={battalions} fetchAll={fetchAll} fetchPendingCount={fetchPendingCount} theme={theme} />}
           </>
         )}
       </div>
@@ -387,7 +423,7 @@ function exportInventoryPDF(label, subtitle, rows) {
 
 // ─── SUPPLY REQUEST PAGE (Items 8–17) ────────────────────────────────────────
 
-function SupplyRequestsPage({ brigades, battalions, categories, inventory, userRole }) {
+function SupplyRequestsPage({ brigades, battalions, categories, inventory, userRole, theme }) {
   const [tab, setTab] = useState("active");
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -642,7 +678,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
 
 // ─── USER MANAGEMENT ─────────────────────────────────────────────────────────
 
-function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount }) {
+function UserManagement({ brigades, battalions, fetchAll, fetchPendingCount, theme }) {
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -860,7 +896,7 @@ function sumInv(inventory, battalionIds, catalogItemId) {
 
 // ─── STATE DASHBOARD ─────────────────────────────────────────────────────────
 
-function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchInventoryOnly, userRole }) {
+function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchInventoryOnly, userRole, theme }) {
   const [open, setOpen] = useState({});
   const [localCats, setLocalCats] = useState(categories);
   const [localStateInv, setLocalStateInv] = useState(stateInventory);
@@ -1062,7 +1098,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
 
 // ─── BRIGADE PAGE ─────────────────────────────────────────────────────────────
 
-function BrigadePage({ brigades, battalions, inventory, categories }) {
+function BrigadePage({ brigades, battalions, inventory, categories, theme }) {
   const [selectedBrigade, setSelectedBrigade] = useState("");
   const [open, setOpen] = useState({});
   const [expandedItems, setExpandedItems] = useState({}); // Item 6
@@ -1228,7 +1264,7 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
 
 // ─── BATTALION PAGE ───────────────────────────────────────────────────────────
 
-function BattalionPage({ brigades, battalions, inventory, categories, fetchInventoryOnly, userRole }) {
+function BattalionPage({ brigades, battalions, inventory, categories, fetchInventoryOnly, userRole, theme }) {
   const [selectedBat, setSelectedBat] = useState("");
   const [open, setOpen] = useState({});
   const [sectionEdits, setSectionEdits] = useState({});
@@ -1622,7 +1658,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
 
 // ─── UNITS PAGE ───────────────────────────────────────────────────────────────
 
-function UnitsPage({ brigades, battalions, fetchBattalionsOnly }) {
+function UnitsPage({ brigades, battalions, fetchBattalionsOnly, theme }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ unit_number: "", school_name: "", school_abbr: "", school_address: "", cadet_count: "", commandant_name: "", commandant_email: "", phone: "", brigade_id: "" });
