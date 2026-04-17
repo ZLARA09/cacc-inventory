@@ -48,7 +48,6 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [page, setPage] = useState("state");
   const [categories, setCategories] = useState({});
   const [brigades, setBrigades] = useState([]);
@@ -69,10 +68,9 @@ export default function App() {
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
   const [staffLoginError, setStaffLoginError] = useState("");
+  const isDarkMode = false;
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") setIsDarkMode(true);
     fetchPublicData();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -184,12 +182,6 @@ export default function App() {
 
   async function signOut() { await supabase.auth.signOut(); }
 
-  function toggleTheme() {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    localStorage.setItem("theme", newMode ? "dark" : "light");
-  }
-
   if (authLoading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: theme.bg, fontFamily: "sans-serif" }}>
       <div style={{ textAlign: "center" }}>
@@ -292,10 +284,10 @@ export default function App() {
 
   const isStateAdmin = userRole.role === "state_admin";
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole.role);
-  const theme = isDarkMode ? DARK_THEME : LIGHT_THEME;
-  const secondaryBg = isDarkMode ? theme.text : "#f8fafc";
-  const panelBg = isDarkMode ? theme.text : "#f8fafc";
-  const fieldBg = isDarkMode ? theme.text : "#ffffff";
+  const theme = LIGHT_THEME;
+  const secondaryBg = "#f8fafc";
+  const panelBg = "#f8fafc";
+  const fieldBg = "#ffffff";
   const cardBorder = theme.border;
   const cardBorderSoft = theme.borderLight;
 
@@ -327,7 +319,6 @@ export default function App() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div className="desktop-tabs" style={{ fontSize: 12, color: NAV_TEXT }}>{userRole.full_name} · {userRole.role.replace(/_/g, " ")}</div>
-          <button onClick={toggleTheme} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #334155", background: "transparent", fontSize: 12, cursor: "pointer", color: NAV_TEXT, title: isDarkMode ? "Switch to light mode" : "Switch to dark mode" }}>{isDarkMode ? "☀" : "🌙"}</button>
           <button onClick={signOut} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #334155", background: "transparent", fontSize: 12, cursor: "pointer", color: NAV_TEXT }}>Sign out</button>
           <button onClick={() => setMenuOpen(m => !m)} className="mobile-menu-btn" style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #334155", background: "transparent", fontSize: 13, cursor: "pointer", color: "#fff", flexShrink: 0 }}>{menuOpen ? "✕" : "☰"}</button>
         </div>
