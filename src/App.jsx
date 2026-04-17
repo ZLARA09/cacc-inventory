@@ -453,21 +453,19 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
     const brig = req.brigades;
     const hasAlert = req.supply_request_items?.some(i => ["backordered", "out_of_stock"].includes(i.item_status));
     return (
-      <div onClick={() => setOpenTicket(req)} style={{ background: "#fff", border: hasAlert ? "0.5px solid #fca5a5" : "0.5px solid #e5e7eb", borderRadius: 10, padding: 14, marginBottom: 10, cursor: "pointer" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-          <div>
-            <div style={{ fontSize: 11, fontFamily: "monospace", color: "#6b7280", marginBottom: 2 }}>{req.ticket_id}</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{bat?.unit_number} — {bat?.school_name}</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>{brig?.name}</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: sc.bg, color: sc.color, fontWeight: 600 }}>{sc.label}</span>
-            {hasAlert && <div style={{ fontSize: 10, color: "#991b1b", marginTop: 4 }}>⚠ Items need attention</div>}
-          </div>
+      <div onClick={() => setOpenTicket(req)} style={{ background: "#fff", border: hasAlert ? "0.5px solid #fca5a5" : "0.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", marginBottom: 6, cursor: "pointer", display: "grid", gridTemplateColumns: "120px 1fr 100px 90px 80px 70px", gap: 10, alignItems: "center", fontSize: 12 }}>
+        <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280" }}>{req.ticket_id}</div>
+        <div>
+          <div style={{ fontWeight: 500, color: "#111827", fontSize: 12 }}>{bat?.unit_number} — {bat?.school_name}</div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>{brig?.name}</div>
         </div>
-        <div style={{ fontSize: 11, color: "#9ca3af" }}>Submitted: {formatDateShort(req.created_at)}</div>
-        <div style={{ fontSize: 11, color: "#9ca3af" }}>Last updated: {formatDateShort(req.last_updated_at || req.created_at)}</div>
-        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>{req.supply_request_items?.length || 0} line items</div>
+        <div style={{ fontSize: 11, color: "#6b7280" }}>{formatDateShort(req.created_at)}</div>
+        <div style={{ fontSize: 11, color: "#6b7280" }}>{formatDateShort(req.last_updated_at || req.created_at)}</div>
+        <div style={{ fontSize: 11, color: "#6b7280", textAlign: "center" }}>{req.supply_request_items?.length || 0}</div>
+        <div style={{ textAlign: "right" }}>
+          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: sc.bg, color: sc.color, fontWeight: 600, whiteSpace: "nowrap" }}>{sc.label}</span>
+          {hasAlert && <div style={{ fontSize: 9, color: "#991b1b", marginTop: 2 }}>⚠</div>}
+        </div>
       </div>
     );
   }
@@ -490,10 +488,20 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
       <div style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Supply requests</div>
       <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Manage incoming supply requests from battalions statewide.</div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {[["active", `Active (${activeReqs.length})`], ["backlog", `Backlog (${backlogReqs.length})`], ["archived", `Archive (${archivedReqs.length})`]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{ padding: "8px 16px", borderRadius: 8, border: tab === id ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: tab === id ? "#E6F1FB" : "#fff", color: tab === id ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: tab === id ? 600 : 400 }}>{label}</button>
         ))}
+      </div>
+
+      {/* Table header */}
+      <div style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 8, padding: "6px 12px", marginBottom: 6, display: "grid", gridTemplateColumns: "120px 1fr 100px 90px 80px 70px", gap: 10, fontSize: 11, fontWeight: 600, color: "#6b7280" }}>
+        <div>Ticket ID</div>
+        <div>Unit / Brigade</div>
+        <div>Submitted</div>
+        <div>Last updated</div>
+        <div style={{ textAlign: "center" }}>Items</div>
+        <div style={{ textAlign: "right" }}>Status</div>
       </div>
 
       {loading ? <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Loading...</div> : (
@@ -508,10 +516,22 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
 }
 
 function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBack, onUpdateStatus, onUpdateItem, userRole }) {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const sc = statusConfig[ticket.status] || statusConfig.submitted;
   const bat = ticket.battalions;
   const brig = ticket.brigades;
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole.role);
+
+  async function deleteTicket() {
+    setDeleting(true);
+    const { error } = await supabase.from("supply_requests").delete().eq("id", ticket.id);
+    setDeleting(false);
+    if (!error) {
+      setShowDeleteModal(false);
+      onBack();
+    } else alert("Error deleting ticket.");
+  }
 
   const statusFlow = ["submitted", "in_review", "fulfilling", "shipped", "archived"];
   const statusLabels = { submitted: "Submitted", in_review: "In review", fulfilling: "In warehouse", shipped: "Shipped", archived: "Archived" };
@@ -546,7 +566,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
 
   return (
     <div>
-      <button onClick={onBack} style={{ padding: "8px 14px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827", marginBottom: 16 }}>← Back to requests</button>
+      <button onClick={() => { setShowDeleteModal(false); onBack(); }} style={{ padding: "8px 14px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 13, cursor: "pointer", color: "#111827", marginBottom: 16 }}>← Back to requests</button>
 
       {/* Ticket Header */}
       <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -593,9 +613,29 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
             {!["archived", "backlog"].includes(ticket.status) && <button onClick={() => onUpdateStatus(ticket.id, "backlog")} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", fontSize: 13, cursor: "pointer" }}>Move to backlog</button>}
             {ticket.status === "backlog" && <button onClick={() => onUpdateStatus(ticket.id, "submitted")} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", fontSize: 13, cursor: "pointer" }}>Move to active</button>}
             {ticket.status !== "archived" && <button onClick={() => onUpdateStatus(ticket.id, "archived")} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", color: "#6b7280", fontSize: 13, cursor: "pointer" }}>Archive ticket</button>}
+            <button onClick={() => setShowDeleteModal(true)} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", fontSize: 13, cursor: "pointer" }}>Delete ticket</button>
           </div>
         )}
       </div>
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%", boxShadow: "0 20px 25px rgba(0,0,0,0.15)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Delete ticket?</div>
+            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Are you sure you want to permanently delete this ticket? This action cannot be undone.</div>
+            <div style={{ background: "#f9fafb", borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12 }}>
+              <div style={{ fontFamily: "monospace", fontWeight: 600, color: "#111827", marginBottom: 8 }}>{ticket.ticket_id}</div>
+              <div style={{ color: "#6b7280", fontSize: 11 }}><strong>Unit:</strong> {bat?.unit_number} — {bat?.school_name}</div>
+              <div style={{ color: "#6b7280", fontSize: 11 }}><strong>Brigade:</strong> {brig?.name}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowDeleteModal(false)} disabled={deleting} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", color: "#6b7280", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+              <button onClick={deleteTicket} disabled={deleting} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#991b1b", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>{deleting ? "Deleting..." : "Delete permanently"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Line Items */}
       <div style={{ background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 16 }}>
