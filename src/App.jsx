@@ -1065,10 +1065,9 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                       const inStock = Math.max(0, warehouse - (batInv.qty_issued || 0));
                       const isAlert = threshold > 0 && inStock < threshold;
                       return (
-                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 70px 80px 90px 100px 80px 80px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
+                        <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 70px 80px 90px 100px 80px 80px", padding: "6px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: isAlert ? "#FEF2F2" : "#fff" }}>
                           <div>
-                            <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name}</div>
-                            <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
+                            <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name} <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>— {item.size_label}</span></div>
                           </div>
                           <div style={{ display: "flex", gap: 3 }}>
                             <button onClick={() => { if (!item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: item.in_stock ? "1.5px solid #166534" : "0.5px solid #e5e7eb", background: item.in_stock ? "#dcfce7" : "#fff", color: item.in_stock ? "#166534" : "#9ca3af", fontSize: 9, cursor: item.in_stock ? "default" : "pointer", fontWeight: 500 }}>In</button>
@@ -1216,12 +1215,11 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
                           return (
                             <div key={item.id}>
                               {/* Brigade aggregate row (Items 6 & 7) */}
-                              <div onClick={() => toggleItem(item.id)} style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 80px 100px", padding: "10px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, cursor: "pointer", background: isExpanded ? "#f9fafb" : "#fff" }}>
+                              <div onClick={() => toggleItem(item.id)} style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 80px 100px", padding: "6px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, cursor: "pointer", background: isExpanded ? "#f9fafb" : "#fff" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                   <span style={{ fontSize: 11, color: "#185FA5", flexShrink: 0 }}>{isExpanded ? "▼" : "▶"}</span>
                                   <div>
-                                    <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{item.item_name}</span>
-                                    <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 8 }}>{item.size_label}</span>
+                                    <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{item.item_name} <span style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>— {item.size_label}</span></span>
                                   </div>
                                 </div>
                                 <div style={{ fontSize: 13, color: "#111827", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{inv.qty_serviceable}</div>
@@ -1238,7 +1236,7 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
                                 const bIssued = batRow?.qty_issued || 0;
                                 const bStock = Math.max(0, bSvc - bIssued);
                                 return (
-                                  <div key={bat.id} style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 80px 100px", padding: "7px 14px 7px 36px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: "#f9fafb" }}>
+                                  <div key={bat.id} style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 80px 100px", padding: "5px 14px 5px 36px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 8, background: "#f9fafb" }}>
                                     <div>
                                       <span style={{ fontSize: 11, fontWeight: 500, color: "#374151" }}>{bat.unit_number}</span>
                                       <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 6 }}>{bat.school_name}</span>
@@ -1504,10 +1502,9 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
                           const inStock = Math.max(0, svc - issued);
                           const isAlert = threshold > 0 && inStock < threshold;
                           return (
-                            <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 60px 70px 70px 70px 70px", padding: "8px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 6, background: isAlert ? "#FEF2F2" : "#fff" }}>
+                            <div key={item.id} style={{ display: "grid", gridTemplateColumns: "2fr 60px 70px 70px 70px 70px", padding: "5px 14px", borderBottom: "0.5px solid #f3f4f6", alignItems: "center", gap: 6, background: isAlert ? "#FEF2F2" : "#fff" }}>
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: isAlert ? 600 : 400, color: "#111827" }}>{item.item_name}</div>
-                                <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
+                                <div style={{ fontSize: 13, fontWeight: isAlert ? 600 : 400, color: "#111827" }}>{item.item_name} <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>— {item.size_label}</span></div>
                               </div>
                               <input type="number" min="0" value={threshold} onChange={e => setEdit(cat, item.id, "shortage_threshold", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
                               <input type="number" min="0" value={svc} onChange={e => setEdit(cat, item.id, "qty_serviceable", e.target.value)} style={{ width: "100%", padding: "5px 2px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} />
@@ -1594,11 +1591,10 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
                           const oosDate = item.out_of_stock_at ? formatDate(item.out_of_stock_at) : null;
                           if (isOOS) {
                             return (
-                              <div key={item.id} style={{ padding: "10px 14px", borderTop: "0.5px solid #f3f4f6", background: "#FEF2F2" }}>
+                              <div key={item.id} style={{ padding: "6px 14px", borderTop: "0.5px solid #f3f4f6", background: "#FEF2F2" }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                   <div>
-                                    <div style={{ fontSize: 13, color: "#6b7280" }}>{item.item_name}</div>
-                                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{item.size_label}</div>
+                                    <div style={{ fontSize: 13, color: "#6b7280" }}>{item.item_name} <span style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>— {item.size_label}</span></div>
                                   </div>
                                   <div style={{ textAlign: "right" }}>
                                     <div style={{ fontSize: 11, color: "#991b1b", fontWeight: 600 }}>⚠ Out of stock at State HQ</div>
@@ -1609,10 +1605,9 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
                             );
                           }
                           return (
-                            <div key={item.id} style={{ padding: "10px 14px", borderTop: "0.5px solid #f3f4f6", background: qty > 0 ? "#FEF9C3" : "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div key={item.id} style={{ padding: "6px 14px", borderTop: "0.5px solid #f3f4f6", background: qty > 0 ? "#FEF9C3" : "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: qty > 0 ? 600 : 400, color: "#111827" }}>{item.item_name}</div>
-                                <div style={{ fontSize: 11, color: "#6b7280" }}>{item.size_label}</div>
+                                <div style={{ fontSize: 13, fontWeight: qty > 0 ? 600 : 400, color: "#111827" }}>{item.item_name} <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>— {item.size_label}</span></div>
                               </div>
                               <input type="number" min="0" value={qty || ""} placeholder="0" onChange={e => setSupplyQtys(q => ({ ...q, [item.id]: parseInt(e.target.value) || 0 }))} style={{ width: 64, padding: "8px 6px", borderRadius: 6, border: qty > 0 ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", fontSize: 14, color: "#111827", textAlign: "center", background: "#ffffff", flexShrink: 0 }} />
                             </div>
