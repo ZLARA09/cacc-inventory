@@ -1882,3 +1882,4 @@ function UnitsPage({ brigades, battalions, fetchBattalionsOnly, theme }) {
     </div>
   );
 }
+
