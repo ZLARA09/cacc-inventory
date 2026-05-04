@@ -20,9 +20,7 @@ const NAV_TEXT = "#cbd5e1";
 const NAV_TEXT_ACTIVE = "#ffffff";
 
 export default function App() {
-  const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const userRole = { role: "state_admin", full_name: "CACC State HQ" };
   const [page, setPage] = useState("state");
   const [categories, setCategories] = useState({});
   const [brigades, setBrigades] = useState([]);
@@ -32,61 +30,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const [showRequestForm, setShowRequestForm] = useState(false);
-  const [requestType, setRequestType] = useState("commandant");
-  const [requestForm, setRequestForm] = useState({ first_name: "", last_name: "", rank: "", phone: "", school_email: "", cacc_email: "", commandant_email: "", brigade_id: "", battalion_id: "" });
-  const [requestBrigades, setRequestBrigades] = useState([]);
-  const [requestBattalions, setRequestBattalions] = useState([]);
-  const [requestSubmitted, setRequestSubmitted] = useState(false);
-  const [requestSaving, setRequestSaving] = useState(false);
-  const [showStaffLogin, setShowStaffLogin] = useState(false);
-  const [staffEmail, setStaffEmail] = useState("");
-  const [staffPassword, setStaffPassword] = useState("");
-  const [staffLoginError, setStaffLoginError] = useState("");
 
   useEffect(() => {
-    fetchPublicData();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) handleSession(session);
-      else setAuthLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) handleSession(session);
-      else { setUserRole(null); setAuthLoading(false); }
-    });
-    return () => subscription.unsubscribe();
+    fetchAll();
+    fetchPendingCount();
   }, []);
-
-  async function fetchPublicData() {
-    const [brigRes, batRes] = await Promise.all([
-      supabase.from("brigades").select("*").order("brigade_number"),
-      supabase.from("battalions").select("*").order("unit_number"),
-    ]);
-    if (!brigRes.error) setRequestBrigades(brigRes.data);
-    if (!batRes.error) setRequestBattalions(batRes.data);
-  }
-
-  async function handleSession(session) {
-    const email = session.user.email;
-    const name = session.user.user_metadata?.full_name || session.user.user_metadata?.name || email.split("@")[0];
-    const { data: existing } = await supabase.from("user_roles").select("*").eq("email", email).single();
-    if (existing) {
-      if (!existing.user_id) await supabase.from("user_roles").update({ user_id: session.user.id }).eq("email", email);
-      setUserRole(existing);
-      setAuthLoading(false);
-      if (existing.role !== "pending") { fetchAll(); fetchPendingCount(); }
-    } else if (email.endsWith("@cacadets.org") || email.endsWith("@cacc.internal")) {
-      const newUser = { user_id: session.user.id, email, full_name: name, role: "pending" };
-      await supabase.from("user_roles").insert([newUser]);
-      setUserRole({ ...newUser, role: "pending" });
-      setAuthLoading(false);
-    } else {
-      setUserRole(null);
-      setAuthLoading(false);
-    }
-  }
 
   async function fetchPendingCount() {
     const { data: reqs } = await supabase.from("account_requests").select("id").eq("status", "pending");
@@ -132,129 +80,6 @@ export default function App() {
     if (data) setBattalions(data);
   }
 
-  async function submitAccountRequest() {
-    if (!requestForm.first_name || !requestForm.last_name || !requestForm.school_email) {
-      alert("Please fill in at least your first name, last name, and email.");
-      return;
-    }
-    setRequestSaving(true);
-    await supabase.from("account_requests").insert([{ ...requestForm, rank: requestForm.rank || null, brigade_id: requestForm.brigade_id || null, battalion_id: requestForm.battalion_id || null, request_type: requestType }]);
-    setRequestSaving(false);
-    setRequestSubmitted(true);
-  }
-
-  async function signInWithMicrosoft() {
-    await supabase.auth.signInWithOAuth({ provider: "azure", options: { scopes: "email", redirectTo: window.location.origin } });
-  }
-
-  async function signInWithPassword() {
-    setStaffLoginError("");
-    const email = staffEmail.includes("@") ? staffEmail : `${staffEmail}@cacc.internal`;
-    const { error } = await supabase.auth.signInWithPassword({ email, password: staffPassword });
-    if (error) setStaffLoginError("Invalid username or password.");
-  }
-
-  async function signOut() { await supabase.auth.signOut(); }
-
-  if (authLoading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f1f5f9", fontFamily: "sans-serif" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
-        <div style={{ fontSize: 14, color: "#6b7280" }}>Loading...</div>
-      </div>
-    </div>
-  );
-
-  if (!session) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f1f5f9", fontFamily: "sans-serif", padding: 16 }}>
-      <div style={{ maxWidth: 420, width: "100%" }}>
-        <div style={{ background: "#fff", borderRadius: 16, padding: 32, border: "0.5px solid #e5e7eb", textAlign: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
-          <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 28 }}>California Cadet Corps — Supply Management</div>
-          <button onClick={signInWithMicrosoft} style={{ width: "100%", padding: "14px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 15, cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, fontWeight: 500, marginBottom: 10 }}>
-            <svg width="20" height="20" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
-            Sign in with Microsoft
-          </button>
-          <button onClick={() => setShowStaffLogin(s => !s)} style={{ width: "100%", padding: "12px 20px", borderRadius: 10, border: "0.5px solid #d1d5db", background: "#f9fafb", fontSize: 14, cursor: "pointer", color: "#6b7280", marginBottom: 10 }}>Staff / approved account login</button>
-          {showStaffLogin && (
-            <div style={{ textAlign: "left", marginBottom: 10, padding: 16, background: "#f9fafb", borderRadius: 10, border: "0.5px solid #e5e7eb" }}>
-              <div style={{ marginBottom: 8 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Username or email</div><input value={staffEmail} onChange={e => setStaffEmail(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>
-              <div style={{ marginBottom: 10 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Password</div><input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && signInWithPassword()} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>
-              {staffLoginError && <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 8, padding: "8px 10px", background: "#FEF2F2", borderRadius: 6 }}>{staffLoginError}</div>}
-              <button onClick={signInWithPassword} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>Sign in</button>
-            </div>
-          )}
-          <div style={{ borderTop: "0.5px solid #f3f4f6", paddingTop: 12 }}>
-            <button onClick={() => setShowRequestForm(s => !s)} style={{ width: "100%", padding: "12px 20px", borderRadius: 10, border: "0.5px solid #185FA5", background: "#E6F1FB", fontSize: 14, cursor: "pointer", color: "#185FA5", fontWeight: 500 }}>
-              {showRequestForm ? "Hide request form" : "Request commandant / cadet account"}
-            </button>
-          </div>
-        </div>
-        {showRequestForm && !requestSubmitted && (
-          <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "0.5px solid #e5e7eb" }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Request an account</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-              <button onClick={() => setRequestType("commandant")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "commandant" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "commandant" ? "#E6F1FB" : "#fff", color: requestType === "commandant" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "commandant" ? 600 : 400 }}>Commandant</button>
-              <button onClick={() => setRequestType("cadet")} style={{ flex: 1, padding: "10px", borderRadius: 8, border: requestType === "cadet" ? "1.5px solid #185FA5" : "0.5px solid #d1d5db", background: requestType === "cadet" ? "#E6F1FB" : "#fff", color: requestType === "cadet" ? "#185FA5" : "#6b7280", fontSize: 13, cursor: "pointer", fontWeight: requestType === "cadet" ? 600 : 400 }}>Supply cadet</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>First name *</div><input value={requestForm.first_name} onChange={e => setRequestForm(f => ({ ...f, first_name: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>
-                <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Last name *</div><input value={requestForm.last_name} onChange={e => setRequestForm(f => ({ ...f, last_name: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{requestType === "cadet" ? "Cadet rank" : "Rank"}</div><input value={requestForm.rank} onChange={e => setRequestForm(f => ({ ...f, rank: e.target.value }))} placeholder={requestType === "cadet" ? "e.g. C/SGT" : "e.g. MAJ"} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>
-                <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Phone</div><input value={requestForm.phone} onChange={e => setRequestForm(f => ({ ...f, phone: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>
-              </div>
-              <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{requestType === "cadet" ? "School email *" : "Email *"}</div><input value={requestForm.school_email} onChange={e => setRequestForm(f => ({ ...f, school_email: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>
-              {requestType === "commandant" && <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>CACC email (if you have one)</div><input value={requestForm.cacc_email} onChange={e => setRequestForm(f => ({ ...f, cacc_email: e.target.value }))} placeholder="you@cacadets.org" style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>}
-              {requestType === "cadet" && <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Commandant email *</div><input value={requestForm.commandant_email} onChange={e => setRequestForm(f => ({ ...f, commandant_email: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", boxSizing: "border-box" }} /></div>}
-              <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Brigade</div>
-                <select value={requestForm.brigade_id} onChange={e => setRequestForm(f => ({ ...f, brigade_id: e.target.value, battalion_id: "" }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827" }}>
-                  <option value="">Select brigade...</option>
-                  {requestBrigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
-              <div><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Battalion / School</div>
-                <select value={requestForm.battalion_id} onChange={e => setRequestForm(f => ({ ...f, battalion_id: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 14, background: "#fff", color: "#111827" }}>
-                  <option value="">Select battalion...</option>
-                  {(requestForm.brigade_id ? requestBattalions.filter(b => b.brigade_id === requestForm.brigade_id) : requestBattalions).map(b => <option key={b.id} value={b.id}>{b.unit_number} — {b.school_name}</option>)}
-                </select>
-              </div>
-              <button onClick={submitAccountRequest} disabled={requestSaving} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#185FA5", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>{requestSaving ? "Submitting..." : "Submit account request"}</button>
-            </div>
-          </div>
-        )}
-        {showRequestForm && requestSubmitted && (
-          <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "0.5px solid #e5e7eb", textAlign: "center" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "#111827", marginBottom: 8 }}>Request submitted!</div>
-            <div style={{ fontSize: 13, color: "#6b7280" }}>State HQ has been notified. You will receive access once approved.</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  if (!userRole) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f1f5f9", fontFamily: "sans-serif" }}>
-      <div style={{ background: "#fff", borderRadius: 16, padding: 40, maxWidth: 400, width: "100%", margin: "0 16px", border: "0.5px solid #e5e7eb", textAlign: "center" }}>
-        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
-        <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#FEF2F2", borderRadius: 8 }}>Signed in as: <strong>{session.user.email}</strong><br />Only authorized accounts are permitted.</div>
-        <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Sign out</button>
-      </div>
-    </div>
-  );
-
-  if (userRole.role === "pending") return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f1f5f9", fontFamily: "sans-serif" }}>
-      <div style={{ background: "#fff", borderRadius: 16, padding: 40, maxWidth: 400, width: "100%", margin: "0 16px", border: "0.5px solid #e5e7eb", textAlign: "center" }}>
-        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>CACC <span style={{ color: "#185FA5" }}>Inventory</span></div>
-        <div style={{ fontSize: 13, color: "#111827", marginBottom: 24, padding: "12px 16px", background: "#EAF3DE", borderRadius: 8 }}>Signed in as: <strong>{session.user.email}</strong><br /><br />Your account is pending approval. State HQ has been notified.</div>
-        <button onClick={signOut} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "0.5px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer", color: "#111827" }}>Sign out</button>
-      </div>
-    </div>
-  );
 
   const isStateAdmin = userRole.role === "state_admin";
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole.role);
@@ -286,8 +111,6 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="desktop-tabs" style={{ fontSize: 12, color: NAV_TEXT }}>{userRole.full_name} · {userRole.role.replace(/_/g, " ")}</div>
-          <button onClick={signOut} className="desktop-tabs" style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #334155", background: "transparent", fontSize: 12, cursor: "pointer", color: NAV_TEXT }}>Sign out</button>
           <button onClick={() => setMenuOpen(m => !m)} className="mobile-menu-btn" style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #334155", background: "transparent", fontSize: 13, cursor: "pointer", color: "#fff", flexShrink: 0 }}>{menuOpen ? "✕" : "☰"}</button>
         </div>
       </div>
@@ -296,14 +119,12 @@ export default function App() {
 
       {menuOpen && (
         <div style={{ background: NAV_BG, borderBottom: "0.5px solid #1e3a5f", padding: "8px 0" }}>
-          <div style={{ padding: "10px 20px", fontSize: 12, color: NAV_TEXT, borderBottom: "0.5px solid #1e3a5f" }}>{userRole.full_name} · {userRole.role.replace(/_/g, " ")}</div>
           {tabs.map(t => (
             <div key={t.id} onClick={() => { setPage(t.id); setMenuOpen(false); }} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", background: page === t.id ? "#1e3a5f" : "transparent", color: page === t.id ? "#60a5fa" : NAV_TEXT, fontWeight: page === t.id ? 600 : 400, borderLeft: page === t.id ? "3px solid #60a5fa" : "3px solid transparent", display: "flex", alignItems: "center", gap: 8 }}>
               {t.label}
               {t.badge > 0 && <span style={{ background: "#ef4444", color: "#fff", fontSize: 10, borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>{t.badge}</span>}
             </div>
           ))}
-          <div onClick={signOut} style={{ padding: "14px 20px", fontSize: 14, cursor: "pointer", color: "#fca5a5" }}>Sign out</div>
         </div>
       )}
 
