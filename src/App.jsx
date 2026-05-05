@@ -289,7 +289,16 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const allItems = Object.values(localCats).flat();
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole?.role);
 
-  useEffect(() => { setLocalCats(categories); }, [categories]);
+  useEffect(() => { 
+    setLocalCats(categories); 
+    // Debug: Log first item to see what fields are present
+    const firstCat = Object.keys(categories)[0];
+    if (firstCat && categories[firstCat]?.[0]) {
+      console.log('StateDashboard - First item in localCats:', categories[firstCat][0]);
+      console.log('Has in_stock field:', 'in_stock' in categories[firstCat][0]);
+      console.log('in_stock value:', categories[firstCat][0].in_stock);
+    }
+  }, [categories]);
   useEffect(() => { setLocalStateInv(stateInventory); }, [stateInventory]);
   useEffect(() => { fetchNotice(); }, []);
 
