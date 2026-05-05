@@ -104,14 +104,8 @@ export default function App() {
     if (data) setBattalions(data);
   }
 
-  function onStockToggle(itemId, newInStock, newOutOfStockAt) {
-    setCategories(prev => {
-      const updated = {};
-      for (const [cat, items] of Object.entries(prev)) {
-        updated[cat] = items.map(i => i.id === itemId ? { ...i, in_stock: newInStock, out_of_stock_at: newOutOfStockAt } : i);
-      }
-      return updated;
-    });
+  function onStockToggle(freshCategories) {
+    setCategories(freshCategories);
   }
 
   const isStateAdmin = userRole.role === "state_admin";
@@ -289,16 +283,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const allItems = Object.values(localCats).flat();
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole?.role);
 
-  useEffect(() => { 
-    setLocalCats(categories); 
-    // Debug: Log first item to see what fields are present
-    const firstCat = Object.keys(categories)[0];
-    if (firstCat && categories[firstCat]?.[0]) {
-      console.log('StateDashboard - First item in localCats:', categories[firstCat][0]);
-      console.log('Has in_stock field:', 'in_stock' in categories[firstCat][0]);
-      console.log('in_stock value:', categories[firstCat][0].in_stock);
-    }
-  }, [categories]);
+  useEffect(() => { setLocalCats(categories); }, [categories]);
   useEffect(() => { setLocalStateInv(stateInventory); }, [stateInventory]);
   useEffect(() => { fetchNotice(); }, []);
 
@@ -348,8 +333,16 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     if (error) {
       console.error("Failed to update stock status in Supabase:", error);
     } else {
-      // Update parent categories state without refetching
-      onStockToggle(item.id, newVal, now);
+      // Fetch fresh catalog_items to update parent categories state
+      const { data: freshCatalog } = await supabase.from("catalog_items").select("*").order("sort_order");
+      if (freshCatalog) {
+        const grouped = freshCatalog.reduce((acc, item) => {
+          if (!acc[item.category]) acc[item.category] = [];
+          acc[item.category].push(item);
+          return acc;
+        }, {});
+        onStockToggle(grouped);
+      }
     }
   }
 
