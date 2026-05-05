@@ -325,7 +325,10 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
       }
       return updated;
     });
-    await supabase.from("catalog_items").update({ in_stock: newVal, out_of_stock_at: now }).eq("id", item.id);
+    const { error } = await supabase.from("catalog_items").update({ in_stock: newVal, out_of_stock_at: now }).eq("id", item.id);
+    if (error) {
+      console.error("Failed to update stock status in Supabase:", error);
+    }
   }
 
   async function saveSection(cat, items) {
