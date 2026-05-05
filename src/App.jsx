@@ -322,13 +322,12 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   async function toggleStock(item) {
     const newVal = !item.in_stock;
     const now = newVal ? null : new Date().toISOString();
-    setLocalCats(prev => {
-      const updated = {};
-      for (const [cat, items] of Object.entries(prev)) {
-        updated[cat] = items.map(i => i.id === item.id ? { ...i, in_stock: newVal, out_of_stock_at: now } : i);
-      }
-      return updated;
-    });
+    const updatedCats = {};
+    for (const [cat, items] of Object.entries(localCats)) {
+      updatedCats[cat] = items.map(i => i.id === item.id ? { ...i, in_stock: newVal, out_of_stock_at: now } : i);
+    }
+    setLocalCats(updatedCats);
+    onStockToggle(updatedCats);
     await supabase.from("catalog_items").update({ in_stock: newVal, out_of_stock_at: now }).eq("id", item.id);
   }
 
