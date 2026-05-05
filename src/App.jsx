@@ -104,6 +104,16 @@ export default function App() {
     if (data) setBattalions(data);
   }
 
+  function onStockToggle(itemId, newInStock, newOutOfStockAt) {
+    setCategories(prev => {
+      const updated = {};
+      for (const [cat, items] of Object.entries(prev)) {
+        updated[cat] = items.map(i => i.id === itemId ? { ...i, in_stock: newInStock, out_of_stock_at: newOutOfStockAt } : i);
+      }
+      return updated;
+    });
+  }
+
   const isStateAdmin = userRole.role === "state_admin";
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole.role);
 
@@ -156,7 +166,7 @@ export default function App() {
       <div style={{ padding: 16 }}>
         {loading ? <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Loading...</div> : (
           <>
-            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} fetchAll={fetchAll} />}
+            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} onStockToggle={onStockToggle} />}
             {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} />}
             {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchBattalionsOnly={fetchBattalionsOnly} />}
@@ -261,7 +271,7 @@ function exportInventoryPDF(label, subtitle, rows) {
 // STATE DASHBOARD COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
-function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchInventoryOnly, userRole, fetchAll }) {
+function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchInventoryOnly, userRole, onStockToggle }) {
   const [open, setOpen] = useState({});
   const [localCats, setLocalCats] = useState(categories);
   const [localStateInv, setLocalStateInv] = useState(stateInventory);
@@ -329,8 +339,8 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     if (error) {
       console.error("Failed to update stock status in Supabase:", error);
     } else {
-      // Refetch all data to update parent categories state
-      await fetchAll();
+      // Update parent categories state without refetching
+      onStockToggle(item.id, newVal, now);
     }
   }
 
