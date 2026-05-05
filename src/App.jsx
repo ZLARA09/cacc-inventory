@@ -156,7 +156,7 @@ export default function App() {
       <div style={{ padding: 16 }}>
         {loading ? <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>Loading...</div> : (
           <>
-            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} />}
+            {page === "state" && <StateDashboard categories={categories} brigades={brigades} battalions={battalions} inventory={inventory} stateInventory={stateInventory} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} fetchAll={fetchAll} />}
             {page === "brigade" && <BrigadePage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} />}
             {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchBattalionsOnly={fetchBattalionsOnly} />}
@@ -261,7 +261,7 @@ function exportInventoryPDF(label, subtitle, rows) {
 // STATE DASHBOARD COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
-function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchInventoryOnly, userRole }) {
+function StateDashboard({ categories, brigades, battalions, inventory, stateInventory, fetchInventoryOnly, userRole, fetchAll }) {
   const [open, setOpen] = useState({});
   const [localCats, setLocalCats] = useState(categories);
   const [localStateInv, setLocalStateInv] = useState(stateInventory);
@@ -328,6 +328,9 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     const { error } = await supabase.from("catalog_items").update({ in_stock: newVal, out_of_stock_at: now }).eq("id", item.id);
     if (error) {
       console.error("Failed to update stock status in Supabase:", error);
+    } else {
+      // Refetch all data to update parent categories state
+      await fetchAll();
     }
   }
 
