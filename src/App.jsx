@@ -1800,7 +1800,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
             {["in_review", "fulfilling", "shipped", "archived"].includes(localTicket.status) && (
               <div>
                 <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>In review owner</div>
-                <select value={localTicket.owner_review || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_review", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                <select value={ticket.owner_review || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_review", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
                   {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
                 </select>
               </div>
@@ -1808,7 +1808,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
             {["fulfilling", "shipped", "archived"].includes(localTicket.status) && (
               <div>
                 <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Warehouse owner</div>
-                <select value={localTicket.owner_warehouse || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_warehouse", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                <select value={ticket.owner_warehouse || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_warehouse", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
                   {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
                 </select>
               </div>
@@ -1816,7 +1816,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
             {["shipped", "archived"].includes(localTicket.status) && (
               <div>
                 <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Shipped by</div>
-                <select value={localTicket.owner_shipped || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_shipped", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                <select value={ticket.owner_shipped || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_shipped", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
                   {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
                 </select>
               </div>
@@ -1829,7 +1829,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
           <div style={{ background: "#f9fafb", borderRadius: 8, padding: 12, marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>Sub-status</div>
             <select 
-              value={localTicket.sub_status || ""} 
+              value={ticket.sub_status || ""} 
               onChange={e => {
                 const newSubStatus = e.target.value;
                 if (!newSubStatus) {
@@ -1844,11 +1844,11 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
               <option value="on_hold">On Hold</option>
               <option value="delayed">Delayed</option>
             </select>
-            {localTicket.sub_status && (
+            {ticket.sub_status && (
               <div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>Reason for {localTicket.sub_status === "on_hold" ? "hold" : "delay"} *</div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>Reason for {ticket.sub_status === "on_hold" ? "hold" : "delay"} *</div>
                 <textarea 
-                  value={localTicket.hold_reason || ""} 
+                  value={ticket.hold_reason || ""} 
                   onChange={e => setLocalTicket(prev => ({ ...prev, hold_reason: e.target.value }))}
                   onBlur={() => onUpdateSubStatus(localTicket.id, localTicket.sub_status, localTicket.hold_reason)}
                   rows={3}
