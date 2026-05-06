@@ -5,6 +5,7 @@
 ALTER TABLE supply_requests ADD COLUMN IF NOT EXISTS owner_review TEXT;
 ALTER TABLE supply_requests ADD COLUMN IF NOT EXISTS owner_warehouse TEXT;
 ALTER TABLE supply_requests ADD COLUMN IF NOT EXISTS owner_shipped TEXT;
+ALTER TABLE supply_requests ADD COLUMN IF NOT EXISTS owner_completed TEXT;
 
 -- Add sub-status columns for hold/delay functionality
 ALTER TABLE supply_requests ADD COLUMN IF NOT EXISTS sub_status TEXT;

@@ -1678,7 +1678,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
   }
 
   const statusFlow = ["submitted", "in_review", "fulfilling", "shipped", "archived"];
-  const statusLabels = { submitted: "Submitted", in_review: "In review", fulfilling: "In warehouse", shipped: "Shipped", archived: "Archived" };
+  const statusLabels = { submitted: "Submitted", in_review: "In review", fulfilling: "In warehouse", shipped: "Shipped", archived: "Archived / Complete" };
   const currentIdx = statusFlow.indexOf(localTicket.status);
 
   function exportTicketPDF() {
@@ -1829,6 +1829,17 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
                 {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
               </select>
             </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Completed by</div>
+              <select 
+                value={localTicket.owner_completed || ""} 
+                onChange={e => onUpdateOwner(localTicket.id, "owner_completed", e.target.value)} 
+                disabled={localTicket.status !== "shipped"}
+                style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44, opacity: localTicket.status !== "shipped" ? 0.4 : 1, cursor: localTicket.status !== "shipped" ? "not-allowed" : "pointer" }}
+              >
+                {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
+              </select>
+            </div>
           </div>
         )}
 
@@ -1868,13 +1879,25 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
           </div>
         )}
 
-        {/* Additional Action Buttons - Reordered */}
+        {/* Additional Action Buttons - Always Visible */}
         {isAdminOrAbove && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
             {!["archived", "backlog"].includes(localTicket.status) && <button onClick={async () => { await supabase.from('supply_requests').update({ status: "backlog", last_updated_at: new Date().toISOString() }).eq('id', ticket.id); setLocalTicket(prev => ({ ...prev, status: "backlog", last_updated_at: new Date().toISOString() })); onUpdateStatus(ticket.id, "backlog"); }} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Move to backlog</button>}
             {localTicket.status === "backlog" && <button onClick={async () => { await supabase.from('supply_requests').update({ status: "submitted", last_updated_at: new Date().toISOString() }).eq('id', ticket.id); setLocalTicket(prev => ({ ...prev, status: "submitted", last_updated_at: new Date().toISOString() })); onUpdateStatus(ticket.id, "submitted"); }} style={{ ...STYLES.button, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", padding: "8px 16px", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Move to active</button>}
             <button onClick={() => setShowDeleteModal(true)} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Delete ticket</button>
-            {localTicket.status === "shipped" && <button onClick={async () => { await supabase.from('supply_requests').update({ status: "archived", last_updated_at: new Date().toISOString() }).eq('id', ticket.id); setLocalTicket(prev => ({ ...prev, status: "archived", last_updated_at: new Date().toISOString() })); onUpdateStatus(ticket.id, "archived"); }} style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Ticket complete / Archive</button>}
+            <button 
+              onClick={async () => { 
+                if (localTicket.status === "shipped") {
+                  await supabase.from('supply_requests').update({ status: "archived", last_updated_at: new Date().toISOString() }).eq('id', ticket.id); 
+                  setLocalTicket(prev => ({ ...prev, status: "archived", last_updated_at: new Date().toISOString() })); 
+                  onUpdateStatus(ticket.id, "archived"); 
+                }
+              }} 
+              disabled={localTicket.status !== "shipped"}
+              style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44, flex: "1 1 auto", minWidth: "140px", opacity: localTicket.status !== "shipped" ? 0.4 : 1, cursor: localTicket.status !== "shipped" ? "not-allowed" : "pointer" }}
+            >
+              Ticket complete / Archive
+            </button>
           </div>
         )}
       </div>
