@@ -1834,8 +1834,8 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
               <select 
                 value={localTicket.owner_completed || ""} 
                 onChange={e => onUpdateOwner(localTicket.id, "owner_completed", e.target.value)} 
-                disabled={localTicket.status !== "shipped"}
-                style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44, opacity: localTicket.status !== "shipped" ? 0.4 : 1, cursor: localTicket.status !== "shipped" ? "not-allowed" : "pointer" }}
+                disabled={!["shipped", "archived"].includes(localTicket.status)}
+                style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44, opacity: !["shipped", "archived"].includes(localTicket.status) ? 0.4 : 1, cursor: !["shipped", "archived"].includes(localTicket.status) ? "not-allowed" : "pointer" }}
               >
                 {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
               </select>
@@ -1893,10 +1893,10 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
                   onUpdateStatus(ticket.id, "archived"); 
                 }
               }} 
-              disabled={localTicket.status !== "shipped"}
-              style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44, flex: "1 1 auto", minWidth: "140px", opacity: localTicket.status !== "shipped" ? 0.4 : 1, cursor: localTicket.status !== "shipped" ? "not-allowed" : "pointer" }}
+              disabled={!["shipped", "archived"].includes(localTicket.status)}
+              style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44, flex: "1 1 auto", minWidth: "140px", opacity: !["shipped", "archived"].includes(localTicket.status) ? 0.4 : 1, cursor: !["shipped", "archived"].includes(localTicket.status) ? "not-allowed" : "pointer" }}
             >
-              Ticket complete / Archive
+              {localTicket.status === "archived" ? "Archived / Complete" : "Archive / Complete"}
             </button>
           </div>
         )}
