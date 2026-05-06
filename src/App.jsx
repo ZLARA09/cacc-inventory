@@ -1890,56 +1890,6 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         </div>
       )}
 
-      {/* Comments Section */}
-      <div style={{ ...STYLES.card, padding: 16, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Comments & updates</div>
-        
-        {/* Add Comment Form */}
-        {isAdminOrAbove && (
-          <div style={{ marginBottom: 16, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <select 
-                value={newComment.author} 
-                onChange={e => setNewComment(prev => ({ ...prev, author: e.target.value }))}
-                style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
-              >
-                <option value="">Select staff member...</option>
-                {staffOptions.filter(s => s).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-              <textarea 
-                value={newComment.text} 
-                onChange={e => setNewComment(prev => ({ ...prev, text: e.target.value }))}
-                rows={2}
-                style={{ ...STYLES.input, resize: "vertical", fontSize: 13 }}
-                placeholder="Add a comment or update..."
-              />
-              <button 
-                onClick={addComment} 
-                disabled={submittingComment}
-                style={{ ...STYLES.button, ...STYLES.buttonPrimary, padding: "10px 16px", minHeight: 44, width: "100%" }}
-              >
-                {submittingComment ? "Adding..." : "Add comment"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Comments List */}
-        {comments.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {comments.map(comment => (
-              <div key={comment.id} style={{ padding: 12, background: "#f9fafb", borderRadius: 8, border: "0.5px solid #e5e7eb" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>{comment.author}</div>
-                <div style={{ fontSize: 13, color: "#374151", marginBottom: 6, whiteSpace: "pre-wrap" }}>{comment.comment}</div>
-                <div style={{ fontSize: 11, color: "#9ca3af" }}>{formatCommentDate(comment.created_at)}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>No comments yet</div>
-        )}
-      </div>
-
       {/* Line Items */}
       <div style={{ ...STYLES.card, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Line items</div>
@@ -2058,6 +2008,56 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
               </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Comments Section */}
+      <div style={{ ...STYLES.card, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Comments & updates</div>
+        
+        {/* Add Comment Form */}
+        {isAdminOrAbove && (
+          <div style={{ marginBottom: 16, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <select 
+                value={newComment.author} 
+                onChange={e => setNewComment(prev => ({ ...prev, author: e.target.value }))}
+                style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
+              >
+                <option value="">Select staff member...</option>
+                {staffOptions.filter(s => s).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+              <textarea 
+                value={newComment.text} 
+                onChange={e => setNewComment(prev => ({ ...prev, text: e.target.value }))}
+                rows={2}
+                style={{ ...STYLES.input, resize: "vertical", fontSize: 13 }}
+                placeholder="Add a comment or update..."
+              />
+              <button 
+                onClick={addComment} 
+                disabled={submittingComment}
+                style={{ ...STYLES.button, ...STYLES.buttonPrimary, padding: "10px 16px", minHeight: 44, width: "100%" }}
+              >
+                {submittingComment ? "Adding..." : "Add comment"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Comments List */}
+        {comments.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {comments.map(comment => (
+              <div key={comment.id} style={{ padding: 12, background: "#f9fafb", borderRadius: 8, border: "0.5px solid #e5e7eb" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>{comment.author}</div>
+                <div style={{ fontSize: 13, color: "#374151", marginBottom: 6, whiteSpace: "pre-wrap" }}>{comment.comment}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af" }}>{formatCommentDate(comment.created_at)}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>No comments yet</div>
         )}
       </div>
 
@@ -2309,4 +2309,6 @@ function UnitsPage({ brigades, battalions, fetchBattalionsOnly }) {
     </div>
   );
 }
+
+
 
