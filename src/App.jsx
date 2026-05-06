@@ -1761,7 +1761,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         {isAdminOrAbove && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <button 
-              onClick={() => currentIdx > 0 && onUpdateStatus(localTicket.id, statusFlow[currentIdx - 1])} 
+              onClick={() => currentIdx > 0 && onUpdateStatus(ticket.id, statusFlow[currentIdx - 1])} 
               disabled={currentIdx === 0}
               style={{ ...STYLES.button, padding: "10px 14px", minWidth: 44, minHeight: 44, background: currentIdx === 0 ? "#f3f4f6" : "#fff", color: currentIdx === 0 ? "#9ca3af" : "#111827", cursor: currentIdx === 0 ? "not-allowed" : "pointer", border: "0.5px solid #d1d5db" }}
             >
@@ -1771,7 +1771,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
               {statusLabels[localTicket.status]}
             </div>
             <button 
-              onClick={() => currentIdx < statusFlow.length - 1 && onUpdateStatus(localTicket.id, statusFlow[currentIdx + 1])} 
+              onClick={() => currentIdx < statusFlow.length - 1 && onUpdateStatus(ticket.id, statusFlow[currentIdx + 1])} 
               disabled={currentIdx === statusFlow.length - 1}
               style={{ ...STYLES.button, padding: "10px 14px", minWidth: 44, minHeight: 44, background: currentIdx === statusFlow.length - 1 ? "#f3f4f6" : "#fff", color: currentIdx === statusFlow.length - 1 ? "#9ca3af" : "#111827", cursor: currentIdx === statusFlow.length - 1 ? "not-allowed" : "pointer", border: "0.5px solid #d1d5db" }}
             >
@@ -1863,9 +1863,9 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         {/* Additional Action Buttons */}
         {isAdminOrAbove && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {!["archived", "backlog"].includes(localTicket.status) && <button onClick={() => onUpdateStatus(localTicket.id, "backlog")} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44 }}>Move to backlog</button>}
-            {localTicket.status === "backlog" && <button onClick={() => onUpdateStatus(localTicket.id, "submitted")} style={{ ...STYLES.button, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", padding: "8px 16px", minHeight: 44 }}>Move to active</button>}
-            {localTicket.status !== "archived" && <button onClick={() => onUpdateStatus(localTicket.id, "archived")} style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44 }}>Archive ticket</button>}
+            {!["archived", "backlog"].includes(localTicket.status) && <button onClick={() => onUpdateStatus(ticket.id, "backlog")} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44 }}>Move to backlog</button>}
+            {localTicket.status === "backlog" && <button onClick={() => onUpdateStatus(ticket.id, "submitted")} style={{ ...STYLES.button, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", padding: "8px 16px", minHeight: 44 }}>Move to active</button>}
+            {localTicket.status !== "archived" && <button onClick={() => onUpdateStatus(ticket.id, "archived")} style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44 }}>Archive ticket</button>}
             <button onClick={() => setShowDeleteModal(true)} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44 }}>Delete ticket</button>
           </div>
         )}
@@ -2309,3 +2309,4 @@ function UnitsPage({ brigades, battalions, fetchBattalionsOnly }) {
     </div>
   );
 }
+
