@@ -1754,24 +1754,38 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
       )}
 
       {/* Status Flow */}
-      <div style={{ ...STYLES.card, padding: 16, marginBottom: 16 }}>
+      <div style={{ ...STYLES.card, padding: 16, marginBottom: 16, textAlign: "center" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Order status</div>
         
-        {/* Bidirectional Status Navigation */}
+        {/* Bidirectional Status Navigation - Centered */}
         {isAdminOrAbove && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <button 
-              onClick={() => currentIdx > 0 && onUpdateStatus(ticket.id, statusFlow[currentIdx - 1])} 
+              onClick={async () => {
+                if (currentIdx > 0) {
+                  const newStatus = statusFlow[currentIdx - 1];
+                  await supabase.from('supply_requests').update({ status: newStatus, last_updated_at: new Date().toISOString() }).eq('id', ticket.id);
+                  setLocalTicket(prev => ({ ...prev, status: newStatus, last_updated_at: new Date().toISOString() }));
+                  onUpdateStatus(ticket.id, newStatus);
+                }
+              }} 
               disabled={currentIdx === 0}
               style={{ ...STYLES.button, padding: "10px 14px", minWidth: 44, minHeight: 44, background: currentIdx === 0 ? "#f3f4f6" : "#fff", color: currentIdx === 0 ? "#9ca3af" : "#111827", cursor: currentIdx === 0 ? "not-allowed" : "pointer", border: "0.5px solid #d1d5db" }}
             >
               ←
             </button>
-            <div style={{ padding: "8px 16px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: "#185FA5", color: "#fff" }}>
+            <div style={{ padding: "8px 16px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: "#0C2340", color: "#fff" }}>
               {statusLabels[localTicket.status]}
             </div>
             <button 
-              onClick={() => currentIdx < statusFlow.length - 1 && onUpdateStatus(ticket.id, statusFlow[currentIdx + 1])} 
+              onClick={async () => {
+                if (currentIdx < statusFlow.length - 1) {
+                  const newStatus = statusFlow[currentIdx + 1];
+                  await supabase.from('supply_requests').update({ status: newStatus, last_updated_at: new Date().toISOString() }).eq('id', ticket.id);
+                  setLocalTicket(prev => ({ ...prev, status: newStatus, last_updated_at: new Date().toISOString() }));
+                  onUpdateStatus(ticket.id, newStatus);
+                }
+              }} 
               disabled={currentIdx === statusFlow.length - 1}
               style={{ ...STYLES.button, padding: "10px 14px", minWidth: 44, minHeight: 44, background: currentIdx === statusFlow.length - 1 ? "#f3f4f6" : "#fff", color: currentIdx === statusFlow.length - 1 ? "#9ca3af" : "#111827", cursor: currentIdx === statusFlow.length - 1 ? "not-allowed" : "pointer", border: "0.5px solid #d1d5db" }}
             >
@@ -1780,47 +1794,41 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
           </div>
         )}
 
-        {/* Status Progress Tracker */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 14 }}>
+        {/* Status Progress Tracker - Centered */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexWrap: "wrap", marginBottom: 14, overflowX: "auto", padding: "4px 0" }}>
           {statusFlow.map((s, i) => {
             const isDone = i < currentIdx;
             const isCurrent = i === currentIdx;
             return (
-              <div key={s} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ padding: "6px 12px", borderRadius: 20, fontSize: 11, fontWeight: isCurrent ? 700 : 400, background: isCurrent ? "#185FA5" : isDone ? "#dcfce7" : "#f3f4f6", color: isCurrent ? "#fff" : isDone ? "#166534" : "#9ca3af", border: isCurrent ? "none" : "0.5px solid #e5e7eb" }}>{statusLabels[s]}</div>
-                {i < statusFlow.length - 1 && <div style={{ width: 16, height: 1, background: isDone || isCurrent ? "#185FA5" : "#e5e7eb" }} />}
+              <div key={s} style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                <div style={{ padding: "6px 12px", borderRadius: 20, fontSize: 11, fontWeight: isCurrent ? 700 : 400, background: isCurrent ? "#0C2340" : isDone ? "#dcfce7" : "#f3f4f6", color: isCurrent ? "#fff" : isDone ? "#166534" : "#9ca3af", border: isCurrent ? "none" : "0.5px solid #e5e7eb", whiteSpace: "nowrap" }}>{statusLabels[s]}</div>
+                {i < statusFlow.length - 1 && <div style={{ width: 16, height: 1, background: isDone || isCurrent ? "#0C2340" : "#e5e7eb", flexShrink: 0 }} />}
               </div>
             );
           })}
         </div>
 
-        {/* Staff Ownership Dropdowns */}
+        {/* Staff Ownership Dropdowns - Always Visible */}
         {isAdminOrAbove && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
-            {["in_review", "fulfilling", "shipped", "archived"].includes(localTicket.status) && (
-              <div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>In review owner</div>
-                <select value={ticket.owner_review || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_review", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
-                  {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
-                </select>
-              </div>
-            )}
-            {["fulfilling", "shipped", "archived"].includes(localTicket.status) && (
-              <div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Warehouse owner</div>
-                <select value={ticket.owner_warehouse || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_warehouse", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
-                  {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
-                </select>
-              </div>
-            )}
-            {["shipped", "archived"].includes(localTicket.status) && (
-              <div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Shipped by</div>
-                <select value={ticket.owner_shipped || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_shipped", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
-                  {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
-                </select>
-              </div>
-            )}
+            <div>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>In review owner</div>
+              <select value={localTicket.owner_review || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_review", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Warehouse owner</div>
+              <select value={localTicket.owner_warehouse || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_warehouse", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Shipped by</div>
+              <select value={localTicket.owner_shipped || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_shipped", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
+              </select>
+            </div>
           </div>
         )}
 
@@ -1860,13 +1868,13 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
           </div>
         )}
 
-        {/* Additional Action Buttons */}
+        {/* Additional Action Buttons - Reordered */}
         {isAdminOrAbove && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {!["archived", "backlog"].includes(localTicket.status) && <button onClick={() => onUpdateStatus(ticket.id, "backlog")} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44 }}>Move to backlog</button>}
-            {localTicket.status === "backlog" && <button onClick={() => onUpdateStatus(ticket.id, "submitted")} style={{ ...STYLES.button, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", padding: "8px 16px", minHeight: 44 }}>Move to active</button>}
-            {localTicket.status !== "archived" && <button onClick={() => onUpdateStatus(ticket.id, "archived")} style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44 }}>Archive ticket</button>}
-            <button onClick={() => setShowDeleteModal(true)} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44 }}>Delete ticket</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+            {!["archived", "backlog"].includes(localTicket.status) && <button onClick={async () => { await supabase.from('supply_requests').update({ status: "backlog", last_updated_at: new Date().toISOString() }).eq('id', ticket.id); setLocalTicket(prev => ({ ...prev, status: "backlog", last_updated_at: new Date().toISOString() })); onUpdateStatus(ticket.id, "backlog"); }} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Move to backlog</button>}
+            {localTicket.status === "backlog" && <button onClick={async () => { await supabase.from('supply_requests').update({ status: "submitted", last_updated_at: new Date().toISOString() }).eq('id', ticket.id); setLocalTicket(prev => ({ ...prev, status: "submitted", last_updated_at: new Date().toISOString() })); onUpdateStatus(ticket.id, "submitted"); }} style={{ ...STYLES.button, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", padding: "8px 16px", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Move to active</button>}
+            <button onClick={() => setShowDeleteModal(true)} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Delete ticket</button>
+            {localTicket.status === "shipped" && <button onClick={async () => { await supabase.from('supply_requests').update({ status: "archived", last_updated_at: new Date().toISOString() }).eq('id', ticket.id); setLocalTicket(prev => ({ ...prev, status: "archived", last_updated_at: new Date().toISOString() })); onUpdateStatus(ticket.id, "archived"); }} style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44, flex: "1 1 auto", minWidth: "140px" }}>Ticket complete / Archive</button>}
           </div>
         )}
       </div>
