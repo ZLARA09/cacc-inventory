@@ -487,16 +487,40 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
         <button onClick={() => exportInventoryPDF("State — All Units", "Complete state warehouse inventory", buildExportRows())} style={{ ...STYLES.button, border: "0.5px solid #0C447C", background: "#E6F1FB", color: "#0C447C" }}>Export inventory — PDF</button>
       </div>
 
-      {/* Search Bar */}
-      <div style={{ position: "relative", marginBottom: 20 }}>
-        <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search items, ribbons, patches..."
-          style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
-        />
+      {/* Search Bar with Expand/Collapse Controls */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <div style={{ position: "relative", flex: "1 1 auto", maxWidth: 320, minWidth: 200 }}>
+          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search items, ribbons, patches..."
+            style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button 
+            onClick={() => {
+              const newOpen = {};
+              SECTIONS.forEach(section => {
+                section.groups.forEach(cat => {
+                  newOpen[cat] = true;
+                });
+              });
+              setOpen(newOpen);
+            }}
+            style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "10px 16px", minHeight: 44, whiteSpace: "nowrap" }}
+          >
+            Expand all
+          </button>
+          <button 
+            onClick={() => setOpen({})}
+            style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "10px 16px", minHeight: 44, whiteSpace: "nowrap" }}
+          >
+            Collapse all
+          </button>
+        </div>
       </div>
 
       {/* Inventory Sections */}
@@ -673,16 +697,40 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
             <button onClick={() => exportInventoryPDF(brigade.name, `Aggregate inventory across ${brigadeBattalions.length} battalions`, buildExportRows())} style={{ ...STYLES.button, border: "0.5px solid #0C447C", background: "#E6F1FB", color: "#0C447C" }}>Export inventory — PDF</button>
           </div>
 
-          {/* Search Bar */}
-          <div style={{ position: "relative", marginBottom: 16 }}>
-            <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search items, ribbons, patches..."
-              style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
-            />
+          {/* Search Bar with Expand/Collapse Controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: "1 1 auto", maxWidth: 320, minWidth: 200 }}>
+              <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search items, ribbons, patches..."
+                style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button 
+                onClick={() => {
+                  const newOpen = {};
+                  SECTIONS.forEach(section => {
+                    section.groups.forEach(cat => {
+                      newOpen[cat] = true;
+                    });
+                  });
+                  setOpen(newOpen);
+                }}
+                style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "10px 16px", minHeight: 44, whiteSpace: "nowrap" }}
+              >
+                Expand all
+              </button>
+              <button 
+                onClick={() => setOpen({})}
+                style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "10px 16px", minHeight: 44, whiteSpace: "nowrap" }}
+              >
+                Collapse all
+              </button>
+            </div>
           </div>
 
           {/* Battalion List */}
@@ -1079,16 +1127,40 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
             Tap any category to expand it. A save button appears at the bottom of each section when you make changes.
           </div>
 
-          {/* Search Bar */}
-          <div style={{ position: "relative", marginBottom: 16 }}>
-            <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search items, ribbons, patches..."
-              style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
-            />
+          {/* Search Bar with Expand/Collapse Controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: "1 1 auto", maxWidth: 320, minWidth: 200 }}>
+              <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search items, ribbons, patches..."
+                style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button 
+                onClick={() => {
+                  const newOpen = {};
+                  SECTIONS.forEach(section => {
+                    section.groups.forEach(cat => {
+                      newOpen[cat] = true;
+                    });
+                  });
+                  setOpen(newOpen);
+                }}
+                style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "10px 16px", minHeight: 44, whiteSpace: "nowrap" }}
+              >
+                Expand all
+              </button>
+              <button 
+                onClick={() => setOpen({})}
+                style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "10px 16px", minHeight: 44, whiteSpace: "nowrap" }}
+              >
+                Collapse all
+              </button>
+            </div>
           </div>
 
           {/* Inventory Sections */}
