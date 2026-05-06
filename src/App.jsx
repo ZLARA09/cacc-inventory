@@ -1452,6 +1452,10 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
   const [newComment, setNewComment] = useState({ author: "", text: "" });
   const [submittingComment, setSubmittingComment] = useState(false);
   const [localTicket, setLocalTicket] = useState(ticket);
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItem, setNewItem] = useState({ catalog_item_id: "", qty_requested: 0, qty_fulfilled: 0, item_status: "pending" });
+  const [savingItem, setSavingItem] = useState(false);
+  const [itemSearchQuery, setItemSearchQuery] = useState("");
   
   const sc = statusConfig[localTicket.status] || statusConfig.submitted;
   const battalion = localTicket.battalions;
@@ -1459,6 +1463,17 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole.role);
 
   const staffOptions = ["", "MSG Barrera", "SSG Ochoa", "SSG Reyna", "SSG Rhodes", "SGT Soto"];
+
+  // Build flat list of all catalog items for add item dropdown
+  const allCatalogItems = Object.values(categories).flat().sort((a, b) => 
+    `${a.item_name} — ${a.size_label}`.localeCompare(`${b.item_name} — ${b.size_label}`)
+  );
+
+  const filteredCatalogItems = itemSearchQuery.trim() 
+    ? allCatalogItems.filter(item => 
+        `${item.item_name} ${item.size_label}`.toLowerCase().includes(itemSearchQuery.toLowerCase())
+      )
+    : allCatalogItems;
 
   useEffect(() => { setLocalTicket(ticket); }, [ticket]);
 
@@ -1497,6 +1512,86 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
       alert("Error adding comment: " + error.message);
     }
     setSubmittingComment(false);
+  }
+
+  async function addLineItem() {
+    if (!newItem.catalog_item_id || newItem.qty_requested <= 0) {
+      alert("Please select an item and enter a quantity.");
+      return;
+    }
+    setSavingItem(true);
+    
+    const { data: insertedItem, error } = await supabase.from("supply_request_items").insert([{
+      request_id: localTicket.id,
+      catalog_item_id: newItem.catalog_item_id,
+      qty_requested: newItem.qty_requested,
+      qty_fulfilled: newItem.qty_fulfilled,
+      item_status: newItem.item_status
+    }]).select().single();
+
+    if (!error && insertedItem) {
+      // Auto-generate comment
+      const catItem = allCatalogItems.find(c => c.id === newItem.catalog_item_id);
+      const commentText = `Line item added: ${catItem?.item_name || "Unknown"} — ${catItem?.size_label || ""} x${newItem.qty_requested}`;
+      await supabase.from("supply_request_comments").insert([{
+        request_id: localTicket.id,
+        author: userRole.full_name || "State HQ",
+        comment: commentText
+      }]);
+
+      // Refresh ticket data
+      const { data: refreshedTicket } = await supabase
+        .from("supply_requests")
+        .select("*, supply_request_items(*), battalions(unit_number, school_name, school_abbr, brigade_id, commandant_name, commandant_email, phone), brigades(name, brigade_number)")
+        .eq("id", localTicket.id)
+        .single();
+      
+      if (refreshedTicket) {
+        setLocalTicket(refreshedTicket);
+      }
+
+      const freshComments = await fetchComments(localTicket.id);
+      setComments(freshComments);
+      
+      setShowAddItem(false);
+      setNewItem({ catalog_item_id: "", qty_requested: 0, qty_fulfilled: 0, item_status: "pending" });
+      setItemSearchQuery("");
+    } else {
+      alert("Error adding item: " + (error?.message || "unknown"));
+    }
+    setSavingItem(false);
+  }
+
+  function buildEmailBody() {
+    const allItems = Object.values(categories).flat();
+    let body = `CACC Supply Update\n\n`;
+    body += `Ticket: ${localTicket.ticket_id}\n`;
+    body += `Unit: ${battalion?.unit_number} — ${battalion?.school_name}\n`;
+    body += `Brigade: ${brigade?.name}\n`;
+    body += `Status: ${sc.label}\n\n`;
+    body += `LINE ITEMS:\n`;
+    (localTicket.supply_request_items || []).forEach(item => {
+      const catItem = allItems.find(c => c.id === item.catalog_item_id);
+      body += `- ${catItem?.item_name || "Unknown"} (${catItem?.size_label || ""}): ${item.qty_fulfilled} of ${item.qty_requested} fulfilled\n`;
+    });
+    if (comments.length > 0) {
+      body += `\nCOMMENTS:\n`;
+      comments.slice().reverse().forEach(c => {
+        body += `- ${c.author}: ${c.comment}\n`;
+      });
+    }
+    body += `\nFor questions, contact logistics@cacadets.org\n`;
+    return encodeURIComponent(body);
+  }
+
+  function emailCommandant() {
+    if (!battalion?.commandant_email) {
+      alert("No commandant email on file for this unit.");
+      return;
+    }
+    const subject = encodeURIComponent(`CACC Supply Update — Ticket ${localTicket.ticket_id}`);
+    const body = buildEmailBody();
+    window.location.href = `mailto:${battalion.commandant_email}?subject=${subject}&body=${body}`;
   }
 
   function formatCommentDate(dateStr) {
@@ -1779,7 +1874,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         <div style={{ display: "grid", gridTemplateColumns: "2fr repeat(3, minmax(70px, 1fr))", padding: "6px 10px", background: "#f9fafb", borderRadius: 6, marginBottom: 6, gap: 8, overflowX: "auto" }}>
           {["Item / Size", "Requested", "Fulfilled", "Status"].map((h, i) => <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: i === 0 ? "left" : "center", minWidth: i === 0 ? "auto" : "70px" }}>{h}</div>)}
         </div>
-        {(ticket.supply_request_items || []).map(item => {
+        {(localTicket.supply_request_items || []).map(item => {
           const allItems = Object.values(categories).flat();
           const catItem = allItems.find(c => c.id === item.catalog_item_id);
           const ist = itemStatusConfig[item.item_status] || itemStatusConfig.pending;
@@ -1809,9 +1904,104 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
             </div>
           );
         })}
+
+        {/* Add Item Form */}
+        {isAdminOrAbove && !showAddItem && (
+          <button onClick={() => setShowAddItem(true)} style={{ ...STYLES.button, ...STYLES.buttonSecondary, width: "100%", marginTop: 12, padding: "10px 16px", minHeight: 44 }}>+ Add item</button>
+        )}
+
+        {isAdminOrAbove && showAddItem && (
+          <div style={{ marginTop: 12, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 10 }}>Add line item</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Search item</div>
+                <input 
+                  type="text" 
+                  value={itemSearchQuery} 
+                  onChange={e => setItemSearchQuery(e.target.value)}
+                  placeholder="Type to search..."
+                  style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Item</div>
+                <select 
+                  value={newItem.catalog_item_id} 
+                  onChange={e => setNewItem(prev => ({ ...prev, catalog_item_id: e.target.value }))}
+                  style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
+                >
+                  <option value="">Select item...</option>
+                  {filteredCatalogItems.map(item => (
+                    <option key={item.id} value={item.id}>{item.item_name} — {item.size_label}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Qty requested</div>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    value={newItem.qty_requested} 
+                    onChange={e => setNewItem(prev => ({ ...prev, qty_requested: parseInt(e.target.value) || 0 }))}
+                    style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Qty fulfilled</div>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    value={newItem.qty_fulfilled} 
+                    onChange={e => setNewItem(prev => ({ ...prev, qty_fulfilled: parseInt(e.target.value) || 0 }))}
+                    style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Status</div>
+                <select 
+                  value={newItem.item_status} 
+                  onChange={e => setNewItem(prev => ({ ...prev, item_status: e.target.value }))}
+                  style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
+                >
+                  {Object.entries(itemStatusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button 
+                  onClick={() => { setShowAddItem(false); setNewItem({ catalog_item_id: "", qty_requested: 0, qty_fulfilled: 0, item_status: "pending" }); setItemSearchQuery(""); }}
+                  style={{ ...STYLES.button, ...STYLES.buttonSecondary, flex: 1, minHeight: 44 }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={addLineItem} 
+                  disabled={savingItem}
+                  style={{ ...STYLES.button, ...STYLES.buttonPrimary, flex: 1, minHeight: 44 }}
+                >
+                  {savingItem ? "Saving..." : "Save item"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <button onClick={exportTicketPDF} style={{ ...STYLES.button, width: "100%", border: "0.5px solid #0C447C", background: "#E6F1FB", color: "#0C447C", padding: "12px" }}>Export ticket to PDF</button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+        <button onClick={exportTicketPDF} style={{ ...STYLES.button, width: "100%", border: "0.5px solid #0C447C", background: "#E6F1FB", color: "#0C447C", padding: "12px", minHeight: 44 }}>Export ticket to PDF</button>
+        {isAdminOrAbove && (
+          <button 
+            onClick={emailCommandant} 
+            disabled={!battalion?.commandant_email}
+            style={{ ...STYLES.button, width: "100%", border: "0.5px solid #185FA5", background: battalion?.commandant_email ? "#fff" : "#f3f4f6", color: battalion?.commandant_email ? "#185FA5" : "#9ca3af", padding: "12px", minHeight: 44, cursor: battalion?.commandant_email ? "pointer" : "not-allowed" }}
+            title={!battalion?.commandant_email ? "No commandant email on file" : ""}
+          >
+            Email commandant
+          </button>
+        )}
+      </div>
     </div>
   );
 }

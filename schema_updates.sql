@@ -19,5 +19,10 @@ CREATE TABLE IF NOT EXISTS supply_request_comments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Add priority fields to battalions table
+ALTER TABLE battalions ADD COLUMN IF NOT EXISTS supply_priority TEXT DEFAULT 'normal';
+ALTER TABLE battalions ADD COLUMN IF NOT EXISTS priority_start_date DATE;
+ALTER TABLE battalions ADD COLUMN IF NOT EXISTS priority_end_date DATE;
+
 -- Reload schema
 NOTIFY pgrst, 'reload schema';
