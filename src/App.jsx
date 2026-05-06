@@ -371,6 +371,19 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
         await supabase.from("state_inventory").insert([data]);
       }
     }
+    
+    // Refresh catalog items to get updated stock status
+    const { data: freshCatalog } = await supabase.from("catalog_items").select("*").order("sort_order");
+    if (freshCatalog) {
+      const grouped = freshCatalog.reduce((acc, item) => {
+        if (!acc[item.category]) acc[item.category] = [];
+        acc[item.category].push(item);
+        return acc;
+      }, {});
+      setLocalCats(grouped);
+      onStockToggle(grouped);
+    }
+    
     const { data: fresh } = await supabase.from("state_inventory").select("*");
     if (fresh) setLocalStateInv(fresh);
     setSectionEdits(e => { const n = { ...e }; delete n[cat]; return n; });
