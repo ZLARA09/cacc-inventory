@@ -319,22 +319,45 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
     return sectionEdits[cat] && Object.keys(sectionEdits[cat]).length > 0; 
   }
 
-  async function toggleStock(item) {
+  function toggleStock(item, cat) {
     const newVal = !item.in_stock;
     const now = newVal ? null : new Date().toISOString();
     const updatedCats = {};
-    for (const [cat, items] of Object.entries(localCats)) {
-      updatedCats[cat] = items.map(i => i.id === item.id ? { ...i, in_stock: newVal, out_of_stock_at: now } : i);
+    for (const [category, items] of Object.entries(localCats)) {
+      updatedCats[category] = items.map(i => i.id === item.id ? { ...i, in_stock: newVal, out_of_stock_at: now } : i);
     }
     setLocalCats(updatedCats);
     onStockToggle(updatedCats);
-    await supabase.from("catalog_items").update({ in_stock: newVal, out_of_stock_at: now }).eq("id", item.id);
+    
+    // Mark this section as having edits so the save button appears
+    setSectionEdits(e => ({ 
+      ...e, 
+      [cat]: { 
+        ...e[cat], 
+        [item.id]: { 
+          ...e[cat]?.[item.id], 
+          _stockChanged: true,
+          in_stock: newVal,
+          out_of_stock_at: now
+        } 
+      } 
+    }));
   }
 
   async function saveSection(cat, items) {
     setSavingSection(s => ({ ...s, [cat]: true }));
     for (const item of items) {
       if (!sectionEdits[cat]?.[item.id]) continue;
+      
+      // Check if this is a stock status change
+      if (sectionEdits[cat][item.id]._stockChanged) {
+        const stockData = {
+          in_stock: sectionEdits[cat][item.id].in_stock,
+          out_of_stock_at: sectionEdits[cat][item.id].out_of_stock_at
+        };
+        await supabase.from("catalog_items").update(stockData).eq("id", item.id);
+      }
+      
       const existing = localStateInv.find(s => s.catalog_item_id === item.id);
       const data = { 
         catalog_item_id: item.id, 
@@ -462,8 +485,8 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                             <div style={{ fontSize: 13, color: "#111827", fontWeight: isAlert ? 600 : 400 }}>{item.item_name} <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>— {item.size_label}</span></div>
                           </div>
                           <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
-                            <button onClick={() => { if (!item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: item.in_stock ? "1.5px solid #166534" : "0.5px solid #e5e7eb", background: item.in_stock ? "#dcfce7" : "#fff", color: item.in_stock ? "#166534" : "#9ca3af", fontSize: 9, cursor: item.in_stock ? "default" : "pointer", fontWeight: 500, minWidth: 28 }}>In</button>
-                            <button onClick={() => { if (item.in_stock) toggleStock(item); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: !item.in_stock ? "1.5px solid #991b1b" : "0.5px solid #e5e7eb", background: !item.in_stock ? "#fee2e2" : "#fff", color: !item.in_stock ? "#991b1b" : "#9ca3af", fontSize: 9, cursor: !item.in_stock ? "default" : "pointer", fontWeight: 500, minWidth: 28 }}>Out</button>
+                            <button onClick={() => { if (!item.in_stock) toggleStock(item, cat); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: item.in_stock ? "1.5px solid #166534" : "0.5px solid #e5e7eb", background: item.in_stock ? "#dcfce7" : "#fff", color: item.in_stock ? "#166534" : "#9ca3af", fontSize: 9, cursor: item.in_stock ? "default" : "pointer", fontWeight: 500, minWidth: 28 }}>In</button>
+                            <button onClick={() => { if (item.in_stock) toggleStock(item, cat); }} style={{ flex: 1, padding: "4px 2px", borderRadius: 6, border: !item.in_stock ? "1.5px solid #991b1b" : "0.5px solid #e5e7eb", background: !item.in_stock ? "#fee2e2" : "#fff", color: !item.in_stock ? "#991b1b" : "#9ca3af", fontSize: 9, cursor: !item.in_stock ? "default" : "pointer", fontWeight: 500, minWidth: 28 }}>Out</button>
                           </div>
                           <div style={{ textAlign: "center" }}><input type="number" min="0" value={threshold} onChange={e => setEdit(cat, item.id, "shortage_threshold", e.target.value)} style={{ width: "100%", maxWidth: 60, padding: "4px", borderRadius: 6, border: isAlert ? "1.5px solid #fca5a5" : "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
                           <div style={{ textAlign: "center" }}><input type="number" min="0" value={warehouse} onChange={e => setEdit(cat, item.id, "qty_warehouse", e.target.value)} style={{ width: "100%", maxWidth: 70, padding: "4px", borderRadius: 6, border: "0.5px solid #d1d5db", fontSize: 12, color: "#111827", textAlign: "center", background: "#fff" }} /></div>
