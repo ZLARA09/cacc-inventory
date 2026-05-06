@@ -53,18 +53,10 @@ export default function App() {
   const [stateInventory, setStateInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     fetchAll();
-    fetchPendingCount();
   }, []);
-
-  async function fetchPendingCount() {
-    const { data: reqs } = await supabase.from("account_requests").select("id").eq("status", "pending");
-    const { data: pending } = await supabase.from("user_roles").select("id").eq("role", "pending");
-    setPendingCount((reqs?.length || 0) + (pending?.length || 0));
-  }
 
   async function fetchAll() {
     setLoading(true);
@@ -117,7 +109,6 @@ export default function App() {
     { id: "battalion", label: "Battalion dashboard" },
     { id: "units", label: "Unit management" },
     ...(isAdminOrAbove ? [{ id: "requests", label: "Supply requests", badge: 0 }] : []),
-    ...(isStateAdmin ? [{ id: "users", label: "User management", badge: pendingCount }] : []),
   ];
 
   return (
@@ -165,7 +156,6 @@ export default function App() {
             {page === "battalion" && <BattalionPage brigades={brigades} battalions={battalions} inventory={inventory} categories={categories} fetchInventoryOnly={fetchInventoryOnly} userRole={userRole} />}
             {page === "units" && <UnitsPage brigades={brigades} battalions={battalions} fetchBattalionsOnly={fetchBattalionsOnly} />}
             {page === "requests" && isAdminOrAbove && <SupplyRequestsPage brigades={brigades} battalions={battalions} categories={categories} inventory={inventory} userRole={userRole} />}
-            {page === "users" && isStateAdmin && <UserManagement brigades={brigades} battalions={battalions} fetchAll={fetchAll} fetchPendingCount={fetchPendingCount} />}
           </>
         )}
       </div>
