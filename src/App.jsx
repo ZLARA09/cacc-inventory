@@ -1297,13 +1297,41 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
     setLoading(false);
   }
 
+  async function fetchComments(requestId) {
+    const { data } = await supabase
+      .from("supply_request_comments")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: false });
+    return data || [];
+  }
+
   async function updateStatus(requestId, newStatus) {
-    await supabase.from("supply_requests").update({ status: newStatus, last_updated_at: new Date().toISOString() }).eq("id", requestId);
+    // Clear sub_status and hold_reason when moving past in_review
+    const updateData = { status: newStatus, last_updated_at: new Date().toISOString() };
+    if (newStatus !== "in_review") {
+      updateData.sub_status = null;
+      updateData.hold_reason = null;
+    }
+    
+    await supabase.from("supply_requests").update(updateData).eq("id", requestId);
     
     // Update local state immediately to reflect the change
-    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: newStatus, last_updated_at: new Date().toISOString() } : r));
+    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, ...updateData } : r));
     
-    if (openTicket?.id === requestId) setOpenTicket(prev => ({ ...prev, status: newStatus, last_updated_at: new Date().toISOString() }));
+    if (openTicket?.id === requestId) setOpenTicket(prev => ({ ...prev, ...updateData }));
+  }
+
+  async function updateOwner(requestId, field, value) {
+    await supabase.from("supply_requests").update({ [field]: value, last_updated_at: new Date().toISOString() }).eq("id", requestId);
+    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, [field]: value, last_updated_at: new Date().toISOString() } : r));
+    if (openTicket?.id === requestId) setOpenTicket(prev => ({ ...prev, [field]: value, last_updated_at: new Date().toISOString() }));
+  }
+
+  async function updateSubStatus(requestId, subStatus, holdReason) {
+    await supabase.from("supply_requests").update({ sub_status: subStatus, hold_reason: holdReason, last_updated_at: new Date().toISOString() }).eq("id", requestId);
+    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, sub_status: subStatus, hold_reason: holdReason, last_updated_at: new Date().toISOString() } : r));
+    if (openTicket?.id === requestId) setOpenTicket(prev => ({ ...prev, sub_status: subStatus, hold_reason: holdReason, last_updated_at: new Date().toISOString() }));
   }
 
   async function updateItemFulfillment(itemId, qty, status) {
@@ -1374,6 +1402,9 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
       onBack={() => { setOpenTicket(null); fetchRequests(); }}
       onUpdateStatus={updateStatus}
       onUpdateItem={updateItemFulfillment}
+      onUpdateOwner={updateOwner}
+      onUpdateSubStatus={updateSubStatus}
+      fetchComments={fetchComments}
       userRole={userRole}
     />
   );
@@ -1414,17 +1445,32 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
 // TICKET DETAIL COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
-function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBack, onUpdateStatus, onUpdateItem, userRole }) {
+function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBack, onUpdateStatus, onUpdateItem, onUpdateOwner, onUpdateSubStatus, fetchComments, userRole }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const sc = statusConfig[ticket.status] || statusConfig.submitted;
-  const battalion = ticket.battalions;
-  const brigade = ticket.brigades;
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState({ author: "", text: "" });
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [localTicket, setLocalTicket] = useState(ticket);
+  
+  const sc = statusConfig[localTicket.status] || statusConfig.submitted;
+  const battalion = localTicket.battalions;
+  const brigade = localTicket.brigades;
   const isAdminOrAbove = ["state_admin", "admin"].includes(userRole.role);
+
+  const staffOptions = ["", "MSG Barrera", "SSG Ochoa", "SSG Reyna", "SSG Rhodes", "SGT Soto"];
+
+  useEffect(() => { setLocalTicket(ticket); }, [ticket]);
+
+  useEffect(() => {
+    if (fetchComments) {
+      fetchComments(localTicket.id).then(data => setComments(data || []));
+    }
+  }, [localTicket.id, fetchComments]);
 
   async function deleteTicket() {
     setDeleting(true);
-    const { error } = await supabase.from("supply_requests").delete().eq("id", ticket.id);
+    const { error } = await supabase.from("supply_requests").delete().eq("id", localTicket.id);
     setDeleting(false);
     if (!error) {
       setShowDeleteModal(false);
@@ -1432,14 +1478,47 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
     } else alert("Error deleting ticket.");
   }
 
+  async function addComment() {
+    if (!newComment.author || !newComment.text.trim()) {
+      alert("Please select a staff member and enter a comment.");
+      return;
+    }
+    setSubmittingComment(true);
+    const { error } = await supabase.from("supply_request_comments").insert([{
+      request_id: localTicket.id,
+      author: newComment.author,
+      comment: newComment.text.trim()
+    }]);
+    if (!error) {
+      const freshComments = await fetchComments(localTicket.id);
+      setComments(freshComments);
+      setNewComment({ author: "", text: "" });
+    } else {
+      alert("Error adding comment: " + error.message);
+    }
+    setSubmittingComment(false);
+  }
+
+  function formatCommentDate(dateStr) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    const day = d.toLocaleString("en-US", { timeZone: "America/Los_Angeles", day: "numeric" });
+    const month = d.toLocaleString("en-US", { timeZone: "America/Los_Angeles", month: "short" });
+    const year = d.toLocaleString("en-US", { timeZone: "America/Los_Angeles", year: "numeric" });
+    const time = d.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit", hour12: true });
+    const tz = d.toLocaleString("en-US", { timeZone: "America/Los_Angeles", timeZoneName: "short" }).split(" ").pop();
+    return `${day} ${month} ${year} · ${time} ${tz}`;
+  }
+
   const statusFlow = ["submitted", "in_review", "fulfilling", "shipped", "archived"];
   const statusLabels = { submitted: "Submitted", in_review: "In review", fulfilling: "In warehouse", shipped: "Shipped", archived: "Archived" };
+  const currentIdx = statusFlow.indexOf(localTicket.status);
 
   function exportTicketPDF() {
-    let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}h1{font-size:16px;margin-bottom:2px}.meta{font-size:10px;color:#555;margin-bottom:4px}.divider{border:none;border-top:1px solid #e5e7eb;margin:12px 0}table{width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed}th{text-align:left;padding:6px 8px;background:#2c3e50;color:#fff;font-size:10px;font-weight:600;border:1px solid #1a252f}th:nth-child(1){width:35%}th:nth-child(2){width:15%}th:nth-child(3){width:15%}th:nth-child(4){width:15%}th:nth-child(5){width:20%}td{padding:6px 8px;border:0.5px solid #e5e7eb;font-size:10px}tbody tr:nth-child(odd){background-color:#fff}tbody tr:nth-child(even){background-color:#f8f9fa}td:nth-child(1){text-align:left}td:nth-child(2){text-align:left;color:#666}td:nth-child(3),td:nth-child(4){text-align:right;padding-right:12px}td:nth-child(5){text-align:left}.badge{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:bold}</style></head><body>`;
+    let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}h1{font-size:16px;margin-bottom:2px}.meta{font-size:10px;color:#555;margin-bottom:4px}.divider{border:none;border-top:1px solid #e5e7eb;margin:12px 0}table{width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed}th{text-align:left;padding:6px 8px;background:#2c3e50;color:#fff;font-size:10px;font-weight:600;border:1px solid #1a252f}th:nth-child(1){width:35%}th:nth-child(2){width:15%}th:nth-child(3){width:15%}th:nth-child(4){width:15%}th:nth-child(5){width:20%}td{padding:6px 8px;border:0.5px solid #e5e7eb;font-size:10px}tbody tr:nth-child(odd){background-color:#fff}tbody tr:nth-child(even){background-color:#f8f9fa}td:nth-child(1){text-align:left}td:nth-child(2){text-align:left;color:#666}td:nth-child(3),td:nth-child(4){text-align:right;padding-right:12px}td:nth-child(5){text-align:left}.badge{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:bold}.comment{margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:4px}.comment-author{font-weight:bold;font-size:10px;color:#111}.comment-text{font-size:10px;color:#555;margin-top:2px}.comment-date{font-size:9px;color:#999;margin-top:2px}</style></head><body>`;
     html += `<h1>CACC Supply Request</h1>`;
-    html += `<div class="meta"><strong>Ticket:</strong> ${ticket.ticket_id}</div>`;
-    html += `<div class="meta"><strong>Last updated:</strong> ${formatDateShort(ticket.last_updated_at || ticket.created_at)}</div>`;
+    html += `<div class="meta"><strong>Ticket:</strong> ${localTicket.ticket_id}</div>`;
+    html += `<div class="meta"><strong>Last updated:</strong> ${formatDateShort(localTicket.last_updated_at || localTicket.created_at)}</div>`;
     html += `<hr class="divider">`;
     html += `<div class="meta"><strong>Unit:</strong> ${battalion?.unit_number} — ${battalion?.school_name}</div>`;
     html += `<div class="meta"><strong>Brigade:</strong> ${brigade?.name}</div>`;
@@ -1448,14 +1527,24 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
     html += `<div class="meta"><strong>Status:</strong> ${sc.label}</div>`;
     html += `<hr class="divider">`;
     html += `<table><thead><tr><th>Item</th><th>Size</th><th>Requested</th><th>Fulfilled</th><th>Status</th></tr></thead><tbody>`;
-    (ticket.supply_request_items || []).forEach(item => {
+    (localTicket.supply_request_items || []).forEach(item => {
       const allItems = Object.values(categories).flat();
       const catItem = allItems.find(c => c.id === item.catalog_item_id);
       const ist = itemStatusConfig[item.item_status] || itemStatusConfig.pending;
       html += `<tr><td>${catItem?.item_name || "Unknown"}</td><td>${catItem?.size_label || ""}</td><td>${item.qty_requested}</td><td>${item.qty_fulfilled}</td><td>${ist.label}</td></tr>`;
     });
     html += `</tbody></table>`;
-    if (ticket.notes) html += `<div class="meta" style="margin-top:12px"><strong>Notes:</strong> ${ticket.notes}</div>`;
+    if (localTicket.notes) html += `<div class="meta" style="margin-top:12px"><strong>Notes:</strong> ${localTicket.notes}</div>`;
+    
+    // Add comments section
+    if (comments.length > 0) {
+      html += `<hr class="divider">`;
+      html += `<h2 style="font-size:13px;margin-top:16px;margin-bottom:8px">Comments</h2>`;
+      comments.slice().reverse().forEach(c => {
+        html += `<div class="comment"><div class="comment-author">${c.author}</div><div class="comment-text">${c.comment}</div><div class="comment-date">${formatCommentDate(c.created_at)}</div></div>`;
+      });
+    }
+    
     html += `</body></html>`;
     const w = window.open("", "_blank");
     w.document.write(html);
@@ -1486,12 +1575,47 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         </div>
       </div>
 
+      {/* Hold/Delay Alert Banner */}
+      {localTicket.status === "in_review" && localTicket.sub_status && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #fca5a5", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ fontSize: 18, flexShrink: 0 }}>⚠</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#991b1b", marginBottom: 4 }}>{localTicket.sub_status === "on_hold" ? "On Hold" : "Delayed"}</div>
+            <div style={{ fontSize: 13, color: "#991b1b" }}>{localTicket.hold_reason || "No reason provided"}</div>
+          </div>
+        </div>
+      )}
+
       {/* Status Flow */}
       <div style={{ ...STYLES.card, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Order status</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        
+        {/* Bidirectional Status Navigation */}
+        {isAdminOrAbove && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            <button 
+              onClick={() => currentIdx > 0 && onUpdateStatus(localTicket.id, statusFlow[currentIdx - 1])} 
+              disabled={currentIdx === 0}
+              style={{ ...STYLES.button, padding: "10px 14px", minWidth: 44, minHeight: 44, background: currentIdx === 0 ? "#f3f4f6" : "#fff", color: currentIdx === 0 ? "#9ca3af" : "#111827", cursor: currentIdx === 0 ? "not-allowed" : "pointer", border: "0.5px solid #d1d5db" }}
+            >
+              ←
+            </button>
+            <div style={{ padding: "8px 16px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: "#185FA5", color: "#fff" }}>
+              {statusLabels[localTicket.status]}
+            </div>
+            <button 
+              onClick={() => currentIdx < statusFlow.length - 1 && onUpdateStatus(localTicket.id, statusFlow[currentIdx + 1])} 
+              disabled={currentIdx === statusFlow.length - 1}
+              style={{ ...STYLES.button, padding: "10px 14px", minWidth: 44, minHeight: 44, background: currentIdx === statusFlow.length - 1 ? "#f3f4f6" : "#fff", color: currentIdx === statusFlow.length - 1 ? "#9ca3af" : "#111827", cursor: currentIdx === statusFlow.length - 1 ? "not-allowed" : "pointer", border: "0.5px solid #d1d5db" }}
+            >
+              →
+            </button>
+          </div>
+        )}
+
+        {/* Status Progress Tracker */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 14 }}>
           {statusFlow.map((s, i) => {
-            const currentIdx = statusFlow.indexOf(ticket.status);
             const isDone = i < currentIdx;
             const isCurrent = i === currentIdx;
             return (
@@ -1503,16 +1627,79 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
           })}
         </div>
 
+        {/* Staff Ownership Dropdowns */}
         {isAdminOrAbove && (
-          <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {ticket.status === "submitted" && <button onClick={() => onUpdateStatus(ticket.id, "in_review")} style={{ ...STYLES.button, border: "none", background: "#fef3c7", color: "#92400e", padding: "8px 16px", fontWeight: 600 }}>Mark: In review</button>}
-            {ticket.status === "in_review" && <button onClick={() => onUpdateStatus(ticket.id, "fulfilling")} style={{ ...STYLES.button, border: "none", background: "#EAF3DE", color: "#27500A", padding: "8px 16px", fontWeight: 600 }}>Mark: In warehouse</button>}
-            {ticket.status === "fulfilling" && <button onClick={() => onUpdateStatus(ticket.id, "shipped")} style={{ ...STYLES.button, border: "none", background: "#dbeafe", color: "#1e3a8a", padding: "8px 16px", fontWeight: 600 }}>Mark: Shipped</button>}
-            {ticket.status === "shipped" && <button onClick={() => onUpdateStatus(ticket.id, "archived")} style={{ ...STYLES.button, border: "none", background: "#dcfce7", color: "#166534", padding: "8px 16px", fontWeight: 600 }}>Mark: Delivered / Archive</button>}
-            {!["archived", "backlog"].includes(ticket.status) && <button onClick={() => onUpdateStatus(ticket.id, "backlog")} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px" }}>Move to backlog</button>}
-            {ticket.status === "backlog" && <button onClick={() => onUpdateStatus(ticket.id, "submitted")} style={{ ...STYLES.button, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", padding: "8px 16px" }}>Move to active</button>}
-            {ticket.status !== "archived" && <button onClick={() => onUpdateStatus(ticket.id, "archived")} style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280" }}>Archive ticket</button>}
-            <button onClick={() => setShowDeleteModal(true)} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px" }}>Delete ticket</button>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
+            {["in_review", "fulfilling", "shipped", "archived"].includes(localTicket.status) && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>In review owner</div>
+                <select value={localTicket.owner_review || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_review", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                  {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
+                </select>
+              </div>
+            )}
+            {["fulfilling", "shipped", "archived"].includes(localTicket.status) && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Warehouse owner</div>
+                <select value={localTicket.owner_warehouse || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_warehouse", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                  {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
+                </select>
+              </div>
+            )}
+            {["shipped", "archived"].includes(localTicket.status) && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Shipped by</div>
+                <select value={localTicket.owner_shipped || ""} onChange={e => onUpdateOwner(localTicket.id, "owner_shipped", e.target.value)} style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}>
+                  {staffOptions.map(opt => <option key={opt} value={opt}>{opt || "(none)"}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Hold/Delay Sub-Status for In Review */}
+        {isAdminOrAbove && localTicket.status === "in_review" && (
+          <div style={{ background: "#f9fafb", borderRadius: 8, padding: 12, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>Sub-status</div>
+            <select 
+              value={localTicket.sub_status || ""} 
+              onChange={e => {
+                const newSubStatus = e.target.value;
+                if (!newSubStatus) {
+                  onUpdateSubStatus(localTicket.id, null, null);
+                } else {
+                  setLocalTicket(prev => ({ ...prev, sub_status: newSubStatus }));
+                }
+              }}
+              style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, marginBottom: 10, minHeight: 44 }}
+            >
+              <option value="">(none)</option>
+              <option value="on_hold">On Hold</option>
+              <option value="delayed">Delayed</option>
+            </select>
+            {localTicket.sub_status && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>Reason for {localTicket.sub_status === "on_hold" ? "hold" : "delay"} *</div>
+                <textarea 
+                  value={localTicket.hold_reason || ""} 
+                  onChange={e => setLocalTicket(prev => ({ ...prev, hold_reason: e.target.value }))}
+                  onBlur={() => onUpdateSubStatus(localTicket.id, localTicket.sub_status, localTicket.hold_reason)}
+                  rows={3}
+                  style={{ ...STYLES.input, resize: "vertical", fontSize: 13 }}
+                  placeholder="Enter reason..."
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Additional Action Buttons */}
+        {isAdminOrAbove && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {!["archived", "backlog"].includes(localTicket.status) && <button onClick={() => onUpdateStatus(localTicket.id, "backlog")} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44 }}>Move to backlog</button>}
+            {localTicket.status === "backlog" && <button onClick={() => onUpdateStatus(localTicket.id, "submitted")} style={{ ...STYLES.button, border: "0.5px solid #185FA5", background: "#E6F1FB", color: "#185FA5", padding: "8px 16px", minHeight: 44 }}>Move to active</button>}
+            {localTicket.status !== "archived" && <button onClick={() => onUpdateStatus(localTicket.id, "archived")} style={{ ...STYLES.button, ...STYLES.buttonSecondary, padding: "8px 16px", color: "#6b7280", minHeight: 44 }}>Archive ticket</button>}
+            <button onClick={() => setShowDeleteModal(true)} style={{ ...STYLES.button, border: "0.5px solid #fca5a5", background: "#fff", color: "#991b1b", padding: "8px 16px", minHeight: 44 }}>Delete ticket</button>
           </div>
         )}
       </div>
@@ -1535,6 +1722,56 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
           </div>
         </div>
       )}
+
+      {/* Comments Section */}
+      <div style={{ ...STYLES.card, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Comments & updates</div>
+        
+        {/* Add Comment Form */}
+        {isAdminOrAbove && (
+          <div style={{ marginBottom: 16, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <select 
+                value={newComment.author} 
+                onChange={e => setNewComment(prev => ({ ...prev, author: e.target.value }))}
+                style={{ ...STYLES.input, padding: "8px 10px", fontSize: 12, minHeight: 44 }}
+              >
+                <option value="">Select staff member...</option>
+                {staffOptions.filter(s => s).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+              <textarea 
+                value={newComment.text} 
+                onChange={e => setNewComment(prev => ({ ...prev, text: e.target.value }))}
+                rows={2}
+                style={{ ...STYLES.input, resize: "vertical", fontSize: 13 }}
+                placeholder="Add a comment or update..."
+              />
+              <button 
+                onClick={addComment} 
+                disabled={submittingComment}
+                style={{ ...STYLES.button, ...STYLES.buttonPrimary, padding: "10px 16px", minHeight: 44, width: "100%" }}
+              >
+                {submittingComment ? "Adding..." : "Add comment"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Comments List */}
+        {comments.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {comments.map(comment => (
+              <div key={comment.id} style={{ padding: 12, background: "#f9fafb", borderRadius: 8, border: "0.5px solid #e5e7eb" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>{comment.author}</div>
+                <div style={{ fontSize: 13, color: "#374151", marginBottom: 6, whiteSpace: "pre-wrap" }}>{comment.comment}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af" }}>{formatCommentDate(comment.created_at)}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>No comments yet</div>
+        )}
+      </div>
 
       {/* Line Items */}
       <div style={{ ...STYLES.card, padding: 16, marginBottom: 16 }}>
