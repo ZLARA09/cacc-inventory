@@ -30,7 +30,7 @@ const NAV_TEXT_ACTIVE = "#ffffff";
 const STYLES = {
   card: { background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, padding: 14 },
   cardHeader: { fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 10 },
-  sectionHeader: { fontSize: 13, fontWeight: 700, textDecoration: "underline", marginBottom: 10, color: "#111827", textTransform: "uppercase", letterSpacing: "0.04em" },
+  sectionHeader: { fontSize: 13, fontWeight: 700, marginBottom: 10, color: "#0C2340", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "2px solid #C9A84C", paddingBottom: 6 },
   button: { padding: "10px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 500 },
   buttonPrimary: { border: "none", background: "#185FA5", color: "#fff" },
   buttonSecondary: { border: "0.5px solid #d1d5db", background: "#fff", color: "#111827" },
@@ -265,6 +265,8 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   const [noticeBanner, setNoticeBanner] = useState("");
   const [noticeEdit, setNoticeEdit] = useState(false);
   const [noticeSaving, setNoticeSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [previousOpenState, setPreviousOpenState] = useState({});
 
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const activeBattalions = battalions.filter(b => b.status === "active");
@@ -276,6 +278,39 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
   useEffect(() => { setLocalCats(categories); }, [categories]);
   useEffect(() => { setLocalStateInv(stateInventory); }, [stateInventory]);
   useEffect(() => { fetchNotice(); }, []);
+
+  // Search functionality
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      if (Object.keys(previousOpenState).length === 0) {
+        setPreviousOpenState(open);
+      }
+      
+      const newOpen = {};
+      SECTIONS.forEach(section => {
+        section.groups.forEach(cat => {
+          const items = localCats[cat] || [];
+          const hasMatch = items.some(item => 
+            item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.size_label.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+          newOpen[cat] = hasMatch;
+        });
+      });
+      setOpen(newOpen);
+    } else if (searchQuery === "" && Object.keys(previousOpenState).length > 0) {
+      setOpen(previousOpenState);
+      setPreviousOpenState({});
+    }
+  }, [searchQuery, localCats]);
+
+  function filterItems(items) {
+    if (!searchQuery.trim()) return items;
+    return items.filter(item =>
+      item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.size_label.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
 
   async function fetchNotice() {
     const { data } = await supabase.from("app_settings").select("value").eq("key", "state_notice").single();
@@ -439,9 +474,9 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
       {/* Stat Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 16 }}>
         {[["Active battalions", activeBattalions.length], ["Total cadets", totalCadets.toLocaleString()], ["Catalog items", allItems.length], ["Out of stock", allItems.filter(i => !i.in_stock).length]].map(([label, value]) => (
-          <div key={label} style={{ ...STYLES.card }}>
-            <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "#0C2340" }}>{value}</div>
+          <div key={label} style={{ background: "#0C2340", border: "0.5px solid #e5e7eb", borderTop: "2px solid #C9A84C", borderRadius: 10, padding: 14 }}>
+            <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "#ffffff" }}>{value}</div>
           </div>
         ))}
       </div>
@@ -452,20 +487,33 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
         <button onClick={() => exportInventoryPDF("State — All Units", "Complete state warehouse inventory", buildExportRows())} style={{ ...STYLES.button, border: "0.5px solid #0C447C", background: "#E6F1FB", color: "#0C447C" }}>Export inventory — PDF</button>
       </div>
 
+      {/* Search Bar */}
+      <div style={{ position: "relative", marginBottom: 20 }}>
+        <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search items, ribbons, patches..."
+          style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
+        />
+      </div>
+
       {/* Inventory Sections */}
       {SECTIONS.map(section => (
         <div key={section.header} style={{ marginBottom: 20 }}>
           <div style={STYLES.sectionHeader}>{section.header}</div>
           {section.groups.map(cat => {
             const items = localCats[cat] || [];
-            if (items.length === 0) return null;
+            const filteredItems = filterItems(items);
+            if (filteredItems.length === 0) return null;
             const hasEdits = catHasEdits(cat);
             return (
-              <div key={cat} style={{ ...STYLES.card, padding: 0, marginBottom: 8, overflow: "hidden" }}>
+              <div key={cat} style={{ ...STYLES.card, padding: 0, marginBottom: 8, overflow: "hidden", borderLeft: open[cat] ? "3px solid #0C2340" : "none" }}>
                 <div onClick={() => toggleCat(cat)} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
                   <span style={{ fontWeight: 500, fontSize: 13, color: "#111827" }}>{cat}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ ...STYLES.badge, background: "#f3f4f6", color: "#6b7280" }}>{items.length}</span>
+                    <span style={{ ...STYLES.badge, background: "#f3f4f6", color: "#6b7280" }}>{filteredItems.length}</span>
                     <span style={{ fontSize: 11, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
                   </div>
                 </div>
@@ -476,7 +524,7 @@ function StateDashboard({ categories, brigades, battalions, inventory, stateInve
                         <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: i === 0 ? "left" : "center", minWidth: i === 0 ? "auto" : "60px" }}>{h}</div>
                       ))}
                     </div>
-                    {items.map(item => {
+                    {filteredItems.map(item => {
                       const battalionInv = sumInv(inventory, allBattalionIds, item.id);
                       const warehouse = getEdit(cat, item.id, "qty_warehouse");
                       const threshold = getEdit(cat, item.id, "shortage_threshold");
@@ -525,9 +573,44 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
   const [selectedBrigade, setSelectedBrigade] = useState("");
   const [open, setOpen] = useState({});
   const [expandedItems, setExpandedItems] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [previousOpenState, setPreviousOpenState] = useState({});
   
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const toggleItem = itemId => setExpandedItems(o => ({ ...o, [itemId]: !o[itemId] }));
+
+  // Search functionality
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      if (Object.keys(previousOpenState).length === 0) {
+        setPreviousOpenState(open);
+      }
+      
+      const newOpen = {};
+      SECTIONS.forEach(section => {
+        section.groups.forEach(cat => {
+          const items = categories[cat] || [];
+          const hasMatch = items.some(item => 
+            item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.size_label.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+          newOpen[cat] = hasMatch;
+        });
+      });
+      setOpen(newOpen);
+    } else if (searchQuery === "" && Object.keys(previousOpenState).length > 0) {
+      setOpen(previousOpenState);
+      setPreviousOpenState({});
+    }
+  }, [searchQuery, categories]);
+
+  function filterItems(items) {
+    if (!searchQuery.trim()) return items;
+    return items.filter(item =>
+      item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.size_label.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
 
   const brigade = brigades.find(b => b.id === selectedBrigade);
   const brigadeBattalions = sortBattalions(battalions.filter(b => b.brigade_id === selectedBrigade));
@@ -577,9 +660,9 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
           {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10, marginBottom: 16 }}>
             {[["Battalions", brigadeBattalions.length], ["Active", brigadeBattalions.filter(b => b.status === "active").length], ["Cadets", totalCadets]].map(([label, value]) => (
-              <div key={label} style={{ ...STYLES.card, padding: 12 }}>
-                <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#0C2340" }}>{value}</div>
+              <div key={label} style={{ background: "#0C2340", border: "0.5px solid #e5e7eb", borderTop: "2px solid #C9A84C", borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "#ffffff" }}>{value}</div>
               </div>
             ))}
           </div>
@@ -588,6 +671,18 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             <button onClick={() => exportInventoryCSV(`${brigade.name.replace(/\s+/g, "-")}`, buildExportRows())} style={{ ...STYLES.button, border: "0.5px solid #27500A", background: "#EAF3DE", color: "#27500A" }}>Export inventory — CSV</button>
             <button onClick={() => exportInventoryPDF(brigade.name, `Aggregate inventory across ${brigadeBattalions.length} battalions`, buildExportRows())} style={{ ...STYLES.button, border: "0.5px solid #0C447C", background: "#E6F1FB", color: "#0C447C" }}>Export inventory — PDF</button>
+          </div>
+
+          {/* Search Bar */}
+          <div style={{ position: "relative", marginBottom: 16 }}>
+            <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search items, ribbons, patches..."
+              style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
+            />
           </div>
 
           {/* Battalion List */}
@@ -620,13 +715,14 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
               <div style={STYLES.sectionHeader}>{section.header}</div>
               {section.groups.map(cat => {
                 const items = categories[cat] || [];
-                if (items.length === 0) return null;
+                const filteredItems = filterItems(items);
+                if (filteredItems.length === 0) return null;
                 return (
-                  <div key={cat} style={{ ...STYLES.card, padding: 0, marginBottom: 8, overflow: "hidden" }}>
+                  <div key={cat} style={{ ...STYLES.card, padding: 0, marginBottom: 8, overflow: "hidden", borderLeft: open[cat] ? "3px solid #0C2340" : "none" }}>
                     <div onClick={() => toggleCat(cat)} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
                       <span style={{ fontWeight: 500, fontSize: 13, color: "#111827" }}>{cat}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ ...STYLES.badge, background: "#f3f4f6", color: "#6b7280" }}>{items.length}</span>
+                        <span style={{ ...STYLES.badge, background: "#f3f4f6", color: "#6b7280" }}>{filteredItems.length}</span>
                         <span style={{ fontSize: 11, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
                       </div>
                     </div>
@@ -638,7 +734,7 @@ function BrigadePage({ brigades, battalions, inventory, categories }) {
                           ))}
                         </div>
 
-                        {items.map(item => {
+                        {filteredItems.map(item => {
                           const inv = sumInv(inventory, battalionIds, item.id);
                           const inStock = Math.max(0, (inv.qty_serviceable || 0) - (inv.qty_issued || 0));
                           const isExpanded = expandedItems[item.id];
@@ -713,11 +809,46 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [myRequests, setMyRequests] = useState([]);
   const [showMyRequests, setShowMyRequests] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [previousOpenState, setPreviousOpenState] = useState({});
 
   const toggleCat = cat => setOpen(o => ({ ...o, [cat]: !o[cat] }));
   const toggleSupplyCat = cat => setSupplyOpen(o => ({ ...o, [cat]: !o[cat] }));
 
   useEffect(() => { setLocalInventory(inventory); }, [inventory]);
+
+  // Search functionality
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      if (Object.keys(previousOpenState).length === 0) {
+        setPreviousOpenState(open);
+      }
+      
+      const newOpen = {};
+      SECTIONS.forEach(section => {
+        section.groups.forEach(cat => {
+          const items = categories[cat] || [];
+          const hasMatch = items.some(item => 
+            item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.size_label.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+          newOpen[cat] = hasMatch;
+        });
+      });
+      setOpen(newOpen);
+    } else if (searchQuery === "" && Object.keys(previousOpenState).length > 0) {
+      setOpen(previousOpenState);
+      setPreviousOpenState({});
+    }
+  }, [searchQuery, categories]);
+
+  function filterItems(items) {
+    if (!searchQuery.trim()) return items;
+    return items.filter(item =>
+      item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.size_label.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
 
   const battalion = battalions.find(b => b.id === selectedBattalion);
   const brigade = battalion ? brigades.find(b => b.id === battalion.brigade_id) : null;
@@ -948,20 +1079,33 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
             Tap any category to expand it. A save button appears at the bottom of each section when you make changes.
           </div>
 
+          {/* Search Bar */}
+          <div style={{ position: "relative", marginBottom: 16 }}>
+            <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: 16 }}>🔍</div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search items, ribbons, patches..."
+              style={{ ...STYLES.input, paddingLeft: 40, minHeight: 44 }}
+            />
+          </div>
+
           {/* Inventory Sections */}
           {SECTIONS.map(section => (
             <div key={section.header} style={{ marginBottom: 20 }}>
               <div style={STYLES.sectionHeader}>{section.header}</div>
               {section.groups.map(cat => {
                 const items = categories[cat] || [];
-                if (items.length === 0) return null;
+                const filteredItems = filterItems(items);
+                if (filteredItems.length === 0) return null;
                 const hasEdits = catHasEdits(cat);
                 return (
-                  <div key={cat} style={{ ...STYLES.card, padding: 0, marginBottom: 8, overflow: "hidden" }}>
+                  <div key={cat} style={{ ...STYLES.card, padding: 0, marginBottom: 8, overflow: "hidden", borderLeft: open[cat] ? "3px solid #0C2340" : "none" }}>
                     <div onClick={() => toggleCat(cat)} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#f9fafb" }}>
                       <span style={{ fontWeight: 500, fontSize: 13, color: "#111827" }}>{cat}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ ...STYLES.badge, background: "#f3f4f6", color: "#6b7280" }}>{items.length}</span>
+                        <span style={{ ...STYLES.badge, background: "#f3f4f6", color: "#6b7280" }}>{filteredItems.length}</span>
                         <span style={{ fontSize: 11, color: "#6b7280" }}>{open[cat] ? "▲" : "▼"}</span>
                       </div>
                     </div>
@@ -972,7 +1116,7 @@ function BattalionPage({ brigades, battalions, inventory, categories, fetchInven
                             <div key={h} style={{ fontSize: 11, color: "#6b7280", fontWeight: 500, textAlign: i === 0 ? "left" : "center", minWidth: i === 0 ? "auto" : "60px" }}>{h}</div>
                           ))}
                         </div>
-                        {items.map(item => {
+                        {filteredItems.map(item => {
                           const svc = getEdit(cat, item.id, "qty_serviceable");
                           const unsvc = getEdit(cat, item.id, "qty_unserviceable");
                           const issued = getEdit(cat, item.id, "qty_issued");
@@ -1155,7 +1299,10 @@ function SupplyRequestsPage({ brigades, battalions, categories, inventory, userR
 
   async function updateStatus(requestId, newStatus) {
     await supabase.from("supply_requests").update({ status: newStatus, last_updated_at: new Date().toISOString() }).eq("id", requestId);
+    
+    // Update local state immediately to reflect the change
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: newStatus, last_updated_at: new Date().toISOString() } : r));
+    
     if (openTicket?.id === requestId) setOpenTicket(prev => ({ ...prev, status: newStatus, last_updated_at: new Date().toISOString() }));
   }
 
