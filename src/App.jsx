@@ -1797,7 +1797,6 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         {isAdminOrAbove && hasUnsavedStatus && (
           <button 
             onClick={async () => {
-              console.log('Save clicked - ticket.id:', ticket.id, 'pendingStatus:', pendingStatus)
               const { data, error } = await supabase
                 .from('supply_requests')
                 .update({ 
@@ -1806,11 +1805,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
                 })
                 .eq('id', ticket.id)
                 .select()
-              console.log('Supabase response - data:', data, 'error:', error)
-              if (error) {
-                alert('SAVE FAILED: ' + error.message)
-              } else {
-                alert('SAVED: ' + pendingStatus)
+              if (!error) {
                 onUpdateStatus(ticket.id, pendingStatus)
               }
             }}
