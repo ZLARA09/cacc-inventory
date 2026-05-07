@@ -1528,6 +1528,7 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
   const [newItem, setNewItem] = useState({ catalog_item_id: "", qty_requested: 0, qty_fulfilled: 0, item_status: "pending" });
   const [savingItem, setSavingItem] = useState(false);
   const [itemSearchQuery, setItemSearchQuery] = useState("");
+  const [pendingStatus, setPendingStatus] = useState(ticket.status);
   
   const sc = statusConfig[localTicket.status] || statusConfig.submitted;
   const battalion = localTicket.battalions;
@@ -1547,7 +1548,10 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
       )
     : allCatalogItems;
 
-  useEffect(() => { setLocalTicket(ticket); }, [ticket]);
+  useEffect(() => { 
+    setLocalTicket(ticket); 
+    setPendingStatus(ticket.status);
+  }, [ticket]);
 
   useEffect(() => {
     if (fetchComments) {
@@ -1679,7 +1683,8 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
 
   const statusFlow = ["submitted", "in_review", "fulfilling", "shipped", "archived"];
   const statusLabels = { submitted: "Submitted", in_review: "In review", fulfilling: "In warehouse", shipped: "Shipped", archived: "Archived / Complete" };
-  const currentIdx = statusFlow.indexOf(localTicket.status);
+  const currentIdx = statusFlow.indexOf(pendingStatus);
+  const hasUnsavedStatus = pendingStatus !== ticket.status;
 
   function exportTicketPDF() {
     let html = `<html><head><style>body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}h1{font-size:16px;margin-bottom:2px}.meta{font-size:10px;color:#555;margin-bottom:4px}.divider{border:none;border-top:1px solid #e5e7eb;margin:12px 0}table{width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed}th{text-align:left;padding:6px 8px;background:#2c3e50;color:#fff;font-size:10px;font-weight:600;border:1px solid #1a252f}th:nth-child(1){width:35%}th:nth-child(2){width:15%}th:nth-child(3){width:15%}th:nth-child(4){width:15%}th:nth-child(5){width:20%}td{padding:6px 8px;border:0.5px solid #e5e7eb;font-size:10px}tbody tr:nth-child(odd){background-color:#fff}tbody tr:nth-child(even){background-color:#f8f9fa}td:nth-child(1){text-align:left}td:nth-child(2){text-align:left;color:#666}td:nth-child(3),td:nth-child(4){text-align:right;padding-right:12px}td:nth-child(5){text-align:left}.badge{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:bold}.comment{margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:4px}.comment-author{font-weight:bold;font-size:10px;color:#111}.comment-text{font-size:10px;color:#555;margin-top:2px}.comment-date{font-size:9px;color:#999;margin-top:2px}</style></head><body>`;
@@ -1761,12 +1766,9 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         {isAdminOrAbove && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <button 
-              onClick={async () => {
+              onClick={() => {
                 if (currentIdx > 0) {
-                  const newStatus = statusFlow[currentIdx - 1];
-                  await supabase.from('supply_requests').update({ status: newStatus, last_updated_at: new Date().toISOString() }).eq('id', ticket.id);
-                  setLocalTicket(prev => ({ ...prev, status: newStatus, last_updated_at: new Date().toISOString() }));
-                  onUpdateStatus(ticket.id, newStatus);
+                  setPendingStatus(statusFlow[currentIdx - 1]);
                 }
               }} 
               disabled={currentIdx === 0}
@@ -1775,15 +1777,12 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
               ←
             </button>
             <div style={{ padding: "8px 16px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: "#0C2340", color: "#fff" }}>
-              {statusLabels[localTicket.status]}
+              {statusLabels[pendingStatus]}
             </div>
             <button 
-              onClick={async () => {
+              onClick={() => {
                 if (currentIdx < statusFlow.length - 1) {
-                  const newStatus = statusFlow[currentIdx + 1];
-                  await supabase.from('supply_requests').update({ status: newStatus, last_updated_at: new Date().toISOString() }).eq('id', ticket.id);
-                  setLocalTicket(prev => ({ ...prev, status: newStatus, last_updated_at: new Date().toISOString() }));
-                  onUpdateStatus(ticket.id, newStatus);
+                  setPendingStatus(statusFlow[currentIdx + 1]);
                 }
               }} 
               disabled={currentIdx === statusFlow.length - 1}
@@ -1792,6 +1791,32 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
               →
             </button>
           </div>
+        )}
+
+        {/* Save Status Button */}
+        {isAdminOrAbove && hasUnsavedStatus && (
+          <button 
+            onClick={async () => {
+              await supabase.from('supply_requests').update({ status: pendingStatus, last_updated_at: new Date().toISOString() }).eq('id', ticket.id);
+              setLocalTicket(prev => ({ ...prev, status: pendingStatus, last_updated_at: new Date().toISOString() }));
+              onUpdateStatus(ticket.id, pendingStatus);
+            }}
+            style={{ 
+              width: "100%", 
+              background: "#166534", 
+              color: "#fff", 
+              fontWeight: 600, 
+              minHeight: 44, 
+              borderRadius: 8, 
+              border: "none", 
+              cursor: "pointer", 
+              fontSize: 13, 
+              marginBottom: 12,
+              padding: "10px 16px"
+            }}
+          >
+            Save status update
+          </button>
         )}
 
         {/* Status Progress Tracker - Centered */}
