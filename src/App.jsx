@@ -1797,9 +1797,22 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         {isAdminOrAbove && hasUnsavedStatus && (
           <button 
             onClick={async () => {
-              console.log('Saving status:', pendingStatus);
-              await onUpdateStatus(ticket.id, pendingStatus);
-              setPendingStatus(pendingStatus);
+              console.log('Save clicked - ticket.id:', ticket.id, 'pendingStatus:', pendingStatus)
+              const { data, error } = await supabase
+                .from('supply_requests')
+                .update({ 
+                  status: pendingStatus,
+                  last_updated_at: new Date().toISOString()
+                })
+                .eq('id', ticket.id)
+                .select()
+              console.log('Supabase response - data:', data, 'error:', error)
+              if (error) {
+                alert('SAVE FAILED: ' + error.message)
+              } else {
+                alert('SAVED: ' + pendingStatus)
+                onUpdateStatus(ticket.id, pendingStatus)
+              }
             }}
             style={{ 
               width: "100%", 
