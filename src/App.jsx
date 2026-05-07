@@ -1797,9 +1797,9 @@ function TicketDetail({ ticket, categories, statusConfig, itemStatusConfig, onBa
         {isAdminOrAbove && hasUnsavedStatus && (
           <button 
             onClick={async () => {
-              await supabase.from('supply_requests').update({ status: pendingStatus, last_updated_at: new Date().toISOString() }).eq('id', ticket.id);
-              setLocalTicket(prev => ({ ...prev, status: pendingStatus, last_updated_at: new Date().toISOString() }));
-              onUpdateStatus(ticket.id, pendingStatus);
+              console.log('Saving status:', pendingStatus);
+              await onUpdateStatus(ticket.id, pendingStatus);
+              setPendingStatus(pendingStatus);
             }}
             style={{ 
               width: "100%", 
