@@ -18,7 +18,7 @@ const SECTIONS = [
   { header: "Accoutrements", groups: ["Accoutrements Class A", "Accoutrements Class B"] },
   { header: "Uniforms", groups: ["Class A Uniform", "Class B Uniform", "Class C Uniform", "PT Uniform"] },
   { header: "Ribbons", groups: ["Ribbons", "Ribbon Backers / Devices"] },
-  { header: "Patches", groups: ["Position Patches"] },
+  { header: "Patches", groups: ["Program Patches", "Position Patches"] },
 ];
 
 // Navy header colors
